@@ -39,9 +39,12 @@ import {
   ChatPickerList,
   formatChatSubtitle,
 } from "../../../components/ui/chat-picker";
-
-const localDateTime = (value?: string | null) =>
-  value ? value.slice(0, 16) : "";
+import {
+  configuredDateTimeLocalToIso,
+  formatConfiguredDateTime,
+  toConfiguredDateTimeLocal,
+  useConfiguredTimezone,
+} from "../../../lib/time";
 
 const parseProfileKeywords = (value: string) =>
   value
@@ -70,14 +73,6 @@ const publicChatUsername = (value: string) => {
   return /^[A-Za-z][A-Za-z0-9_]{2,31}$/.test(text) ? text : null;
 };
 
-const formatDateTime = (value?: string | null) => {
-  if (!value) return "--";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime())
-    ? value
-    : parsed.toLocaleString("zh-CN", { hour12: false });
-};
-
 const monitorStatus = (config: SpeakerCollectionConfig) => {
   switch (config.monitor_status) {
     case "running":
@@ -98,6 +93,7 @@ const monitorStatus = (config: SpeakerCollectionConfig) => {
 
 export default function SpeakerCollectionPage() {
   const { toasts, addToast, removeToast } = useToast();
+  const timezone = useConfiguredTimezone();
   const [token, setToken] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<AccountInfo[]>([]);
   const [chats, setChats] = useState<ChatInfo[]>([]);
@@ -269,8 +265,8 @@ export default function SpeakerCollectionPage() {
         ...form,
         profile_keywords: parseProfileKeywords(profileKeywordsText),
         enabled: form.enabled !== false,
-        start_at: form.start_at ? new Date(form.start_at).toISOString() : null,
-        end_at: form.end_at ? new Date(form.end_at).toISOString() : null,
+        start_at: form.start_at || null,
+        end_at: form.end_at || null,
       });
       addToast("采集配置已保存", "success");
       setConfigs((items) => [
@@ -498,9 +494,14 @@ export default function SpeakerCollectionPage() {
                 开始时间（可选）
                 <input
                   type="datetime-local"
-                  value={localDateTime(form.start_at)}
+                  value={toConfiguredDateTimeLocal(form.start_at, timezone)}
                   onChange={(e) =>
-                    setForm({ ...form, start_at: e.target.value || null })
+                    setForm({
+                      ...form,
+                      start_at: e.target.value
+                        ? configuredDateTimeLocalToIso(e.target.value, timezone)
+                        : null,
+                    })
                   }
                 />
               </label>
@@ -508,9 +509,14 @@ export default function SpeakerCollectionPage() {
                 结束时间（可选）
                 <input
                   type="datetime-local"
-                  value={localDateTime(form.end_at)}
+                  value={toConfiguredDateTimeLocal(form.end_at, timezone)}
                   onChange={(e) =>
-                    setForm({ ...form, end_at: e.target.value || null })
+                    setForm({
+                      ...form,
+                      end_at: e.target.value
+                        ? configuredDateTimeLocalToIso(e.target.value, timezone)
+                        : null,
+                    })
                   }
                 />
               </label>
@@ -667,7 +673,9 @@ export default function SpeakerCollectionPage() {
                         </div>
 
                         <div className="truncate text-[10px] text-main/35">
-                          最近扫描：{formatDateTime(c.last_scan_at)} · 关键词：
+                          最近扫描：
+                          {formatConfiguredDateTime(c.last_scan_at, timezone)} ·
+                          关键词：
                           {(c.profile_keywords || []).join("、") || "全部"}
                         </div>
 
@@ -901,7 +909,10 @@ export default function SpeakerCollectionPage() {
                           {r.message_count}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2.5 text-main/55">
-                          {formatDateTime(r.last_message_at)}
+                          {formatConfiguredDateTime(
+                            r.last_message_at,
+                            timezone,
+                          )}
                         </td>
                         <td
                           className="truncate px-3 py-2.5 pr-5 text-main/55"

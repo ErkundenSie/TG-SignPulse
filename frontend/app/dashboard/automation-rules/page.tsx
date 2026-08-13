@@ -39,6 +39,10 @@ import {
   setAutomationRuleEnabled,
   updateAutomationRule,
 } from "../../../lib/api";
+import {
+  formatConfiguredDateTime,
+  useConfiguredTimezone,
+} from "../../../lib/time";
 
 const triggerLabels: Record<string, string> = {
   message: "收到消息",
@@ -197,16 +201,9 @@ const emptyRule = (accountName = ""): AutomationRule => ({
   vars: {},
 });
 
-const formatDate = (value?: string | null) => {
-  if (!value) return "--";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime())
-    ? value
-    : parsed.toLocaleString("zh-CN", { hour12: false });
-};
-
 export default function AutomationRulesPage() {
   const { toasts, addToast, removeToast } = useToast();
+  const timezone = useConfiguredTimezone();
   const [token, setToken] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<AccountInfo[]>([]);
   const [rules, setRules] = useState<AutomationRule[]>([]);
@@ -1147,7 +1144,7 @@ export default function AutomationRulesPage() {
                             className="grid grid-cols-[150px_70px_minmax(0,1fr)] gap-3 border-b border-white/5 px-4 py-2.5 text-xs"
                           >
                             <span className="font-mono text-main/35">
-                              {formatDate(log.time)}
+                              {formatConfiguredDateTime(log.time, timezone)}
                             </span>
                             <span
                               className={

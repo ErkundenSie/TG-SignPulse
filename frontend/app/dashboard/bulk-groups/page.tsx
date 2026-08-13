@@ -30,6 +30,10 @@ import {
   listBulkGroupMembershipGroups,
   startBulkGroupMembershipJob,
 } from "../../../lib/api";
+import {
+  formatConfiguredDateTime,
+  useConfiguredTimezone,
+} from "../../../lib/time";
 
 const statusLabels: Record<string, string> = {
   running: "运行中",
@@ -55,16 +59,9 @@ const statusClass = (status: string) => {
   return "text-amber-400 bg-amber-500/10 border-amber-500/15";
 };
 
-const formatTime = (value?: string | null) => {
-  if (!value) return "--";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? value
-    : date.toLocaleString("zh-CN", { hour12: false });
-};
-
 export default function BulkGroupsPage() {
   const { toasts, addToast, removeToast } = useToast();
+  const timezone = useConfiguredTimezone();
   const [token, setToken] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<AccountInfo[]>([]);
   const [jobs, setJobs] = useState<BulkGroupMembershipJob[]>([]);
@@ -642,7 +639,12 @@ export default function BulkGroupsPage() {
                       />
                     </div>
                     <div className="mt-2 flex justify-between text-[10px] text-main/35">
-                      <span>{formatTime(selectedJob.created_at)}</span>
+                      <span>
+                        {formatConfiguredDateTime(
+                          selectedJob.created_at,
+                          timezone,
+                        )}
+                      </span>
                       <span>{progressPercent}%</span>
                     </div>
                     {selectedJob.error && (
@@ -685,7 +687,7 @@ export default function BulkGroupsPage() {
                             />
                           )}
                           <span className="font-mono text-[10px] text-main/30">
-                            {formatTime(log.time)}
+                            {formatConfiguredDateTime(log.time, timezone)}
                           </span>
                         </div>
                         <div className="mt-1.5 break-words pl-6 leading-5 text-main/65">
@@ -735,7 +737,10 @@ export default function BulkGroupsPage() {
                             className={`border-t border-white/5 ${selectedJob?.job_id === job.job_id ? "bg-violet-500/[0.05]" : ""}`}
                           >
                             <td className="px-4 py-3 text-main/45">
-                              {formatTime(job.created_at)}
+                              {formatConfiguredDateTime(
+                                job.created_at,
+                                timezone,
+                              )}
                             </td>
                             <td className="px-4 py-3 font-semibold">
                               {job.account_name}

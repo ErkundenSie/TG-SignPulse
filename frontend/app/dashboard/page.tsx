@@ -63,6 +63,10 @@ import {
   saveChatImportJobToHistory,
 } from "../../lib/chat-import-jobs";
 import { useLanguage } from "../../context/LanguageContext";
+import {
+  formatConfiguredDateTime,
+  useConfiguredTimezone,
+} from "../../lib/time";
 
 type ChatMigrationSummary = Record<string, number>;
 const CHAT_IMPORT_BATCH_SIZE = 30;
@@ -79,6 +83,7 @@ const EMPTY_LOGIN_DATA = {
 export default function Dashboard() {
   const router = useRouter();
   const { t } = useLanguage();
+  const timezone = useConfiguredTimezone();
   const { toasts, addToast, removeToast } = useToast();
   const [token, setLocalToken] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<AccountInfo[]>([]);
@@ -3395,7 +3400,7 @@ export default function Dashboard() {
                     >
                       <div className="flex justify-between items-center mb-2.5 text-[10px] uppercase tracking-wider font-bold">
                         <span className="text-main/20 group-hover:text-main/40 transition-colors">
-                          {new Date(log.created_at).toLocaleString()}
+                          {formatConfiguredDateTime(log.created_at, timezone)}
                         </span>
                         <span
                           className={`px-2 py-0.5 rounded-md ${log.success ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"}`}

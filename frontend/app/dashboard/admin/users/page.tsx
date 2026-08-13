@@ -18,6 +18,7 @@ import {
   createManagedUser,
   deleteManagedUser,
   getMe,
+  getGlobalSettings,
   listManagedUsers,
   resetManagedUserTOTP,
   updateManagedUser,
@@ -36,6 +37,23 @@ export default function AdminUsersPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({ username: "", password: "" });
+  const [timezone, setTimezone] = useState("Asia/Shanghai");
+
+  const formatTime = (value: string) => {
+    const timestamp = /(?:Z|[+-]\d{2}:\d{2})$/i.test(value)
+      ? value
+      : `${value}Z`;
+    return new Intl.DateTimeFormat("zh-CN", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    }).format(new Date(timestamp));
+  };
 
   const loadUsers = useCallback(
     async (accessToken: string) => {
@@ -46,7 +64,12 @@ export default function AdminUsersPage() {
           router.replace("/dashboard");
           return;
         }
-        setUsers(await listManagedUsers(accessToken));
+        const [managedUsers, globalSettings] = await Promise.all([
+          listManagedUsers(accessToken),
+          getGlobalSettings(accessToken),
+        ]);
+        setUsers(managedUsers);
+        setTimezone(globalSettings.timezone || "Asia/Shanghai");
       } catch (err) {
         setError(err instanceof Error ? err.message : "加载用户失败");
       } finally {
@@ -305,7 +328,7 @@ export default function AdminUsersPage() {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-main/55">
-                            {new Date(user.created_at).toLocaleString("zh-CN")}
+                            {formatTime(user.created_at)}
                           </td>
                           <td className="px-5 py-3">
                             <div className="flex flex-wrap justify-end gap-1.5">

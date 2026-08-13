@@ -53,6 +53,10 @@ import {
   formatChatSubtitle,
 } from "../../../components/ui/chat-picker";
 import { useLanguage } from "../../../context/LanguageContext";
+import {
+  formatConfiguredDateTime,
+  useConfiguredTimezone,
+} from "../../../lib/time";
 
 type ActionTypeOption =
   | "1"
@@ -249,6 +253,7 @@ type TaskComponentProps = {
   onDelete: (name: string) => void;
   t: (key: string) => string;
   language: string;
+  timezone: string;
 };
 
 // Memoized Task Item Component
@@ -265,6 +270,7 @@ const TaskItem = memo(
     onDelete,
     t,
     language,
+    timezone,
   }: {
     task: SignTask;
     loading: boolean;
@@ -277,6 +283,7 @@ const TaskItem = memo(
     onDelete: (name: string) => void;
     t: (key: string) => string;
     language: string;
+    timezone: string;
   }) => {
     const cloneTaskTitle =
       language === "zh" ? "\u514B\u9686\u4EFB\u52A1" : "Clone Task";
@@ -382,7 +389,9 @@ const TaskItem = memo(
                 {task.last_run.success ? t("success") : t("failure")}
               </span>
               <span>
-                {new Date(task.last_run.time).toLocaleString(
+                {formatConfiguredDateTime(
+                  task.last_run.time,
+                  timezone,
                   language === "zh" ? "zh-CN" : "en-US",
                   {
                     month: "2-digit",
@@ -477,6 +486,7 @@ export default function AccountTasksContent({
 }: AccountTasksContentProps = {}) {
   const router = useRouter();
   const { t, language } = useLanguage();
+  const timezone = useConfiguredTimezone();
   const searchParams = useSearchParams();
   const accountName = searchParams.get("name") || "";
   const resolvedTaskKind: SignTaskKind =
@@ -2291,6 +2301,7 @@ export default function AccountTasksContent({
                             onDelete={handleDeleteTask}
                             t={t}
                             language={language}
+                            timezone={timezone}
                           />
                         ))}
                       </div>
@@ -4478,7 +4489,9 @@ export default function AccountTasksContent({
                         <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 border-b border-white/5 text-[10px]">
                           <div className="flex flex-wrap items-center gap-2 min-w-0">
                             <span className="font-mono text-main/35 whitespace-nowrap">
-                              {new Date(log.time).toLocaleString(
+                              {formatConfiguredDateTime(
+                                log.time,
+                                timezone,
                                 language === "zh" ? "zh-CN" : "en-US",
                               )}
                             </span>

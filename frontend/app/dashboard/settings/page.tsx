@@ -59,6 +59,7 @@ import { ToastContainer, useToast } from "../../../components/ui/toast";
 import { ThemeLanguageToggle } from "../../../components/ThemeLanguageToggle";
 import { useLanguage } from "../../../context/LanguageContext";
 import { TelegramBotNotificationSettings } from "./TelegramBotNotificationSettings";
+import { formatConfiguredDateTime } from "../../../lib/time";
 
 const TIMEZONE_OPTIONS = [
   "Asia/Shanghai",
@@ -203,10 +204,10 @@ function SettingsPageContent() {
   };
 
   const formatDateTime = (value?: string | null) => {
-    if (!value) return "-";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-    return date.toLocaleString();
+    return formatConfiguredDateTime(
+      value,
+      globalSettings.timezone || "Asia/Shanghai",
+    );
   };
 
   const shortSectionDesc: Record<SettingsSection, string> = {
