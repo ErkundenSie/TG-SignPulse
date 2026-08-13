@@ -20,6 +20,31 @@ if [ -d /data ]; then
   fi
 fi
 
+# A full-system restore is staged by the API and intentionally applied only
+# during process startup, before SQLite and background services are opened.
+if [ -d /data/.restore-pending/payload/system ]; then
+  echo "INFO: applying staged TG-FlowPulse system restore ..."
+  for p in /data/.restore-pending/payload/system/*; do
+    [ -e "${p}" ] || continue
+    name="$(basename "${p}")"
+    rm -rf "/data/${name}"
+    cp -a "${p}" "/data/${name}"
+  done
+  rm -rf /data/.restore-pending
+fi
+
+# The restored file is generated from a fixed allow-list of environment keys.
+# Do not source it: values may contain shell metacharacters.
+if [ -f /data/.runtime.env ]; then
+  while IFS='=' read -r key value; do
+    case "${key}" in
+      APP_SECRET_KEY|APP_CORS_ORIGINS|APP_TOTP_VALID_WINDOW|TG_API_ID|TG_API_HASH|TG_SESSION_MODE|TG_SESSION_NO_UPDATES|TG_NO_UPDATES|TZ)
+        export "${key}=${value}"
+        ;;
+    esac
+  done < /data/.runtime.env
+fi
+
 if [ "$(id -u)" -eq 0 ]; then
   if [ "${AUTO_FIX_PERMS}" != "0" ] && [ -d /data ]; then
     echo "INFO: fixing /data permissions for ${TARGET_UID}:${TARGET_GID} ..."
@@ -28,7 +53,7 @@ if [ "$(id -u)" -eq 0 ]; then
 
     # Repair ownership and write bits for existing historical files.
     # This avoids readonly sqlite and permission denied after image upgrades.
-    for p in /data /data/.signer /data/sessions /data/logs /data/db.sqlite /data/.tg_flowpulse_data_dir /data/.tg_signpulse_data_dir; do
+    for p in /data /data/.signer /data/sessions /data/logs /data/.restore-pending /data/db.sqlite /data/.tg_flowpulse_data_dir /data/.tg_signpulse_data_dir; do
       if [ -e "${p}" ]; then
         chown -R "${TARGET_UID}:${TARGET_GID}" "${p}" 2>/dev/null || true
         chmod -R u+rwX "${p}" 2>/dev/null || true

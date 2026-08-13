@@ -1,19 +1,38 @@
 from __future__ import annotations
 
+import shutil
+import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Response,
+    UploadFile,
+    status,
+)
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.auth import require_admin
+from backend.core.config import get_settings
 from backend.core.database import get_db
 from backend.core.security import hash_password
+from backend.core.workspace import activate_workspace, reset_workspace
 from backend.models.user import User
 from backend.utils.paths import ensure_user_workspace_dirs
-from backend.core.config import get_settings
+from backend.utils.full_backup import (
+    BackupError,
+    backup_filename,
+    export_system_backup,
+    read_backup_upload,
+    stage_system_restore,
+)
 
 router = APIRouter()
 
@@ -64,6 +83,75 @@ def _get_regular_user(db: Session, user_id: int) -> User:
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
     return user
+
+
+def _stage_regular_user_workspace(user: User) -> list[tuple]:
+    settings = get_settings()
+    token = activate_workspace(user.id, user.is_admin)
+    staged_paths = []
+    try:
+        for path in (
+            settings.resolve_workdir(),
+            settings.resolve_session_dir(),
+            settings.resolve_logs_dir(),
+        ):
+            if path.exists():
+                staged_path = path.with_name(
+                    f".{path.name}.deleting-{uuid.uuid4().hex}"
+                )
+                path.replace(staged_path)
+                staged_paths.append((path, staged_path))
+    finally:
+        reset_workspace(token)
+    return staged_paths
+
+
+def _restore_staged_workspace(staged_paths: list[tuple]) -> None:
+    for original_path, staged_path in reversed(staged_paths):
+        if staged_path.exists():
+            staged_path.replace(original_path)
+
+
+@router.get("/export-all")
+def export_all_user_data(
+    admin: User = Depends(require_admin),
+):
+    settings = get_settings()
+    return Response(
+        content=export_system_backup(settings),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{backup_filename("system")}"'
+        },
+    )
+
+
+@router.post("/import-all")
+async def import_all_user_data(
+    backup: UploadFile = File(...),
+    confirm_replace: bool = Form(False),
+    admin: User = Depends(require_admin),
+):
+    if not confirm_replace:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="恢复完整系统备份前必须确认覆盖当前全部数据",
+        )
+    if not (backup.filename or "").lower().endswith(".zip"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="请选择 ZIP 备份文件"
+        )
+    try:
+        stage_system_restore(get_settings(), await read_backup_upload(backup))
+    except BackupError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    return {
+        "success": True,
+        "message": "完整系统备份已校验并暂存。重启服务后将覆盖当前数据并恢复备份。",
+        "restart_required": True,
+    }
 
 
 @router.get("", response_model=list[ManagedUserOut])
@@ -134,6 +222,35 @@ def update_regular_user(
     db.commit()
     db.refresh(user)
     return user
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_regular_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    user = _get_regular_user(db, user_id)
+    try:
+        staged_paths = _stage_regular_user_workspace(user)
+    except OSError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"暂存用户工作区失败: {exc}",
+        ) from exc
+    try:
+        db.delete(user)
+        db.commit()
+    except Exception:
+        db.rollback()
+        _restore_staged_workspace(staged_paths)
+        raise
+    for _original_path, staged_path in staged_paths:
+        try:
+            shutil.rmtree(staged_path)
+        except OSError:
+            pass
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/{user_id}/reset-totp", response_model=ManagedUserOut)

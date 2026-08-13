@@ -178,12 +178,36 @@ export const updateManagedUser = (
     token,
   );
 
+export const deleteManagedUser = (token: string, userId: number) =>
+  request<void>(
+    `/admin/users/${pathSegment(userId)}`,
+    { method: "DELETE" },
+    token,
+  );
+
 export const resetManagedUserTOTP = (token: string, userId: number) =>
   request<CurrentUser>(
     `/admin/users/${pathSegment(userId)}/reset-totp`,
     { method: "POST" },
     token,
   );
+
+export const exportAllManagedUsersData = async (token: string) => {
+  const blob = await requestBlob("/admin/users/export-all", {}, token);
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  downloadBlob(blob, `tg-flowpulse-system-backup-${timestamp}.zip`);
+};
+
+export const importAllManagedUsersData = (token: string, backup: File) => {
+  const form = new FormData();
+  form.append("backup", backup);
+  form.append("confirm_replace", "true");
+  return request<{
+    success: boolean;
+    message: string;
+    restart_required: boolean;
+  }>("/admin/users/import-all", { method: "POST", body: form }, token);
+};
 
 export const resetTOTP = (
   token: string,
@@ -827,6 +851,23 @@ export const importAllConfigs = (
     },
     token,
   );
+
+export const exportFullWorkspaceBackup = async (token: string) => {
+  const blob = await requestBlob("/config/backup/full", {}, token);
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  downloadBlob(blob, `tg-flowpulse-workspace-backup-${timestamp}.zip`);
+};
+
+export const importFullWorkspaceBackup = (token: string, backup: File) => {
+  const form = new FormData();
+  form.append("backup", backup);
+  form.append("confirm_replace", "true");
+  return request<{
+    success: boolean;
+    message: string;
+    restart_required: boolean;
+  }>("/config/backup/full/import", { method: "POST", body: form }, token);
+};
 
 export const deleteSignConfig = (
   token: string,

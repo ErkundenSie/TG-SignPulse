@@ -4,18 +4,25 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle,
+  DownloadSimple,
   Key,
   Plus,
   ShieldCheck,
   Spinner,
+  Trash,
   UserList,
   UserMinus,
   UserPlus,
+  UploadSimple,
+  X,
 } from "@phosphor-icons/react";
 import { getToken } from "../../../../lib/auth";
 import {
   createManagedUser,
+  deleteManagedUser,
+  exportAllManagedUsersData,
   getMe,
+  importAllManagedUsersData,
   listManagedUsers,
   resetManagedUserTOTP,
   updateManagedUser,
@@ -31,6 +38,9 @@ export default function AdminUsersPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [form, setForm] = useState({ username: "", password: "" });
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({ username: "", password: "" });
 
@@ -73,6 +83,7 @@ export default function AdminUsersPage() {
       const user = await createManagedUser(token, form);
       setUsers((items) => [user, ...items]);
       setForm({ username: "", password: "" });
+      setCreateDialogOpen(false);
       setMessage("普通用户已创建，工作区已初始化。");
     } catch (err) {
       setError(err instanceof Error ? err.message : "创建用户失败");
@@ -143,6 +154,69 @@ export default function AdminUsersPage() {
     }
   };
 
+  const deleteUser = async (user: CurrentUser) => {
+    if (
+      !token ||
+      !window.confirm(
+        `确认永久删除用户 ${user.username} 吗？该用户的 Telegram 会话、任务、日志和工作区数据将一并删除。`,
+      )
+    ) {
+      return;
+    }
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      await deleteManagedUser(token, user.id);
+      setUsers((items) => items.filter((item) => item.id !== user.id));
+      setEditingId((current) => (current === user.id ? null : current));
+      setMessage(`${user.username} 及其独立工作区数据已删除。`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "删除用户失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const exportAllUsersData = async () => {
+    if (!token) return;
+    setExporting(true);
+    setError("");
+    setMessage("");
+    try {
+      await exportAllManagedUsersData(token);
+      setMessage(
+        "完整系统备份已下载，包含全部用户、会话、密钥、2FA 和数据库数据。",
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "导出全部用户数据失败");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const importAllUsersData = async (file: File) => {
+    if (!token) return;
+    if (
+      !window.confirm(
+        "恢复将覆盖当前整个系统：所有用户的用户名、密码哈希、2FA、Telegram 会话、密钥、数据库和工作区数据。确认继续？",
+      )
+    ) {
+      return;
+    }
+    setImporting(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await importAllManagedUsersData(token, file);
+      setMessage(`${result.message} 请重启服务以完成恢复。`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "导入完整系统备份失败");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="main-content !pt-6">
       <div className="settings-shell settings-shell-single animate-float-up pb-10">
@@ -160,8 +234,55 @@ export default function AdminUsersPage() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 text-[11px] text-emerald-400">
-              <ShieldCheck size={17} weight="fill" /> 单管理员模式
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 text-[11px] text-emerald-400">
+                <ShieldCheck size={17} weight="fill" /> 单管理员模式
+              </div>
+              <button
+                className="btn-secondary"
+                type="button"
+                disabled={exporting}
+                onClick={() => void exportAllUsersData()}
+              >
+                {exporting ? (
+                  <Spinner className="animate-spin" />
+                ) : (
+                  <DownloadSimple weight="bold" />
+                )}{" "}
+                导出完整系统备份
+              </button>
+              <label
+                className={`btn-secondary cursor-pointer ${importing ? "pointer-events-none opacity-50" : ""}`}
+              >
+                {importing ? (
+                  <Spinner className="animate-spin" />
+                ) : (
+                  <UploadSimple weight="bold" />
+                )}{" "}
+                恢复系统备份
+                <input
+                  type="file"
+                  accept=".zip,application/zip"
+                  className="hidden"
+                  disabled={importing}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.currentTarget.value = "";
+                    if (file) void importAllUsersData(file);
+                  }}
+                />
+              </label>
+              <button
+                className="btn-gradient"
+                type="button"
+                onClick={() => {
+                  setError("");
+                  setMessage("");
+                  setCreateDialogOpen(true);
+                }}
+              >
+                <Plus weight="bold" /> 创建用户
+              </button>
             </div>
           </div>
 
@@ -172,61 +293,6 @@ export default function AdminUsersPage() {
               {error || message}
             </div>
           )}
-
-          <form className="settings-panel" onSubmit={createUser}>
-            <div className="settings-panel-header">
-              <div className="settings-panel-title">
-                <div className="settings-panel-icon bg-emerald-500/10 text-emerald-400">
-                  <UserPlus size={18} weight="bold" />
-                </div>
-                <h2 className="text-base font-bold">创建普通用户</h2>
-              </div>
-            </div>
-            <div className="settings-field-grid">
-              <div>
-                <label className="text-[12px] mb-1.5">用户名</label>
-                <input
-                  className="!py-2.5 !px-4"
-                  value={form.username}
-                  minLength={3}
-                  maxLength={50}
-                  required
-                  onChange={(event) =>
-                    setForm((value) => ({
-                      ...value,
-                      username: event.target.value,
-                    }))
-                  }
-                />
-              </div>
-              <div>
-                <label className="text-[12px] mb-1.5">初始密码</label>
-                <input
-                  className="!py-2.5 !px-4"
-                  type="password"
-                  value={form.password}
-                  minLength={8}
-                  required
-                  onChange={(event) =>
-                    setForm((value) => ({
-                      ...value,
-                      password: event.target.value,
-                    }))
-                  }
-                />
-              </div>
-            </div>
-            <div className="settings-actions">
-              <button className="btn-gradient" disabled={saving} type="submit">
-                {saving ? (
-                  <Spinner className="animate-spin" />
-                ) : (
-                  <Plus weight="bold" />
-                )}{" "}
-                创建用户
-              </button>
-            </div>
-          </form>
 
           <section className="settings-panel overflow-hidden">
             <div className="settings-panel-header">
@@ -366,6 +432,14 @@ export default function AdminUsersPage() {
                               )}
                               {user.is_active ? "停用" : "启用"}
                             </button>
+                            <button
+                              className="btn-secondary h-8 px-3 text-xs !text-rose-400"
+                              type="button"
+                              disabled={saving}
+                              onClick={() => void deleteUser(user)}
+                            >
+                              <Trash size={14} /> 删除
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -375,6 +449,99 @@ export default function AdminUsersPage() {
               </div>
             )}
           </section>
+
+          {createDialogOpen && (
+            <div
+              className="modal-overlay active"
+              onMouseDown={() => !saving && setCreateDialogOpen(false)}
+            >
+              <form
+                className="glass-panel modal-content !max-w-md !p-0 overflow-hidden"
+                onSubmit={createUser}
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                <div className="modal-header !mb-0 border-b border-white/5 px-6 py-4">
+                  <div className="settings-panel-title">
+                    <div className="settings-panel-icon bg-emerald-500/10 text-emerald-400">
+                      <UserPlus size={18} weight="bold" />
+                    </div>
+                    <div>
+                      <div className="modal-title">创建普通用户</div>
+                      <div className="mt-1 text-xs text-main/45">
+                        用户数据与 Telegram 会话将独立存放。
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    className="action-btn"
+                    type="button"
+                    disabled={saving}
+                    onClick={() => setCreateDialogOpen(false)}
+                    aria-label="关闭"
+                  >
+                    <X weight="bold" />
+                  </button>
+                </div>
+                <div className="space-y-4 px-6 py-5">
+                  <div>
+                    <label className="text-[12px] mb-1.5">用户名</label>
+                    <input
+                      className="!py-2.5 !px-4"
+                      value={form.username}
+                      minLength={3}
+                      maxLength={50}
+                      required
+                      autoFocus
+                      onChange={(event) =>
+                        setForm((value) => ({
+                          ...value,
+                          username: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[12px] mb-1.5">初始密码</label>
+                    <input
+                      className="!py-2.5 !px-4"
+                      type="password"
+                      value={form.password}
+                      minLength={8}
+                      required
+                      onChange={(event) =>
+                        setForm((value) => ({
+                          ...value,
+                          password: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 border-t border-white/5 px-6 py-4">
+                  <button
+                    className="btn-secondary"
+                    type="button"
+                    disabled={saving}
+                    onClick={() => setCreateDialogOpen(false)}
+                  >
+                    取消
+                  </button>
+                  <button
+                    className="btn-gradient"
+                    disabled={saving}
+                    type="submit"
+                  >
+                    {saving ? (
+                      <Spinner className="animate-spin" />
+                    ) : (
+                      <Plus weight="bold" />
+                    )}{" "}
+                    创建用户
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
         </section>
       </div>
     </div>

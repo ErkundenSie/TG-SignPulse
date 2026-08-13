@@ -5,14 +5,33 @@ from __future__ import annotations
 import json
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Response,
+    UploadFile,
+    status,
+)
 from pydantic import BaseModel
 
 from backend.core.auth import get_current_user
 from backend.models.user import User
+from backend.core.config import get_settings
+from backend.core.database import get_db
+from backend.utils.full_backup import (
+    BackupError,
+    backup_filename,
+    export_user_backup,
+    read_backup_upload,
+    restore_user_backup,
+)
 from backend.scheduler import get_scheduler_timezone
 from backend.services.config import get_config_service
 from backend.utils.storage import is_writable_dir
+from sqlalchemy.orm import Session
 
 router = APIRouter()
 
@@ -203,6 +222,66 @@ def export_all_configs(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to export all configs: {str(e)}",
         )
+
+
+@router.get("/backup/full")
+def export_full_backup(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return Response(
+        content=export_user_backup(get_settings(), db, current_user),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{backup_filename("user")}"'
+        },
+    )
+
+
+@router.post("/backup/full/import")
+async def import_full_backup(
+    backup: UploadFile = File(...),
+    confirm_replace: bool = Form(False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not confirm_replace:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="恢复完整备份前必须确认覆盖当前工作区数据",
+        )
+    if not (backup.filename or "").lower().endswith(".zip"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="请选择 ZIP 备份文件"
+        )
+    try:
+        restore_user_backup(
+            get_settings(), db, current_user, await read_backup_upload(backup)
+        )
+    except BackupError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    except Exception:
+        db.rollback()
+        raise
+
+    _clear_sign_task_cache()
+    try:
+        from backend.scheduler import sync_jobs
+
+        await sync_jobs()
+        from backend.services.keyword_monitor import get_keyword_monitor_service
+
+        await get_keyword_monitor_service().restart_from_tasks()
+    except Exception:
+        pass
+    return {
+        "success": True,
+        "message": "完整工作区备份已恢复，已覆盖当前用户的会话、密钥、配置、任务和历史数据；平台登录资料未修改。",
+        "restart_required": True,
+    }
 
 
 @router.post("/import/all", response_model=ImportAllResponse)

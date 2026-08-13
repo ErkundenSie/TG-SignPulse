@@ -12,7 +12,9 @@ import {
   enableTOTP,
   disableTOTP,
   exportAllConfigs,
+  exportFullWorkspaceBackup,
   importAllConfigs,
+  importFullWorkspaceBackup,
   getAIConfig,
   saveAIConfig,
   testAIConnection,
@@ -131,6 +133,7 @@ function SettingsPageContent() {
   // Config import/export
   const [importConfig, setImportConfig] = useState("");
   const [overwriteConfig, setOverwriteConfig] = useState(false);
+  const [fullBackupLoading, setFullBackupLoading] = useState(false);
 
   // AI config
   const [aiConfig, setAIConfigState] = useState<AIConfig | null>(null);
@@ -430,6 +433,42 @@ function SettingsPageContent() {
       addToast(formatErrorMessage("import_failed", err), "error");
     } finally {
       setConfigLoading(false);
+    }
+  };
+
+  const handleFullBackupExport = async () => {
+    if (!token) return;
+    try {
+      setFullBackupLoading(true);
+      await exportFullWorkspaceBackup(token);
+      addToast(
+        "完整工作区备份已下载，包含 Telegram 会话、密钥、任务和历史数据。",
+        "success",
+      );
+    } catch (err: any) {
+      addToast(err?.message || "导出完整工作区备份失败", "error");
+    } finally {
+      setFullBackupLoading(false);
+    }
+  };
+
+  const handleFullBackupImport = async (file: File) => {
+    if (!token) return;
+    if (
+      !window.confirm(
+        "恢复将覆盖当前用户的 Telegram 会话、密钥、配置、任务和历史数据；当前平台的用户名、密码和 2FA 不会改变。确认继续？",
+      )
+    ) {
+      return;
+    }
+    try {
+      setFullBackupLoading(true);
+      const result = await importFullWorkspaceBackup(token, file);
+      addToast(`${result.message} 请重启服务以加载恢复后的会话。`, "success");
+    } catch (err: any) {
+      addToast(err?.message || "导入完整工作区备份失败", "error");
+    } finally {
+      setFullBackupLoading(false);
     }
   };
 
@@ -1440,91 +1479,163 @@ function SettingsPageContent() {
             )}
 
             {activeSection === "backup" && (
-              <div className="settings-panel">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="settings-callout">
-                    <label className="mb-2 text-[11px]">
-                      {t("export_config")}
-                    </label>
-                    <p className="settings-hint mb-3">{t("export_desc")}</p>
-                    <div className="settings-actions !mt-3 !pt-3">
-                      <button
-                        onClick={handleExport}
-                        className="btn-secondary"
-                        disabled={configLoading}
-                      >
-                        {configLoading ? (
-                          <Spinner className="animate-spin" />
-                        ) : (
-                          <FloppyDisk weight="bold" />
-                        )}
-                        {t("download_json")}
-                      </button>
+              <div className="space-y-4">
+                <div className="settings-panel">
+                  <div className="settings-panel-header">
+                    <div className="settings-panel-title">
+                      <div className="settings-panel-icon bg-rose-500/10 text-rose-400">
+                        <FloppyDisk weight="bold" size={18} />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold">完整工作区迁移</h3>
+                        <p className="text-[10px] text-main/45 mt-0.5">
+                          ZIP 包包含 Telegram 登录会话、API
+                          密钥、代理、任务、日志和当前用户的全部工作区数据；不包含平台登录资料。
+                        </p>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="settings-callout flex flex-col">
-                    <div className="flex justify-between items-center mb-2">
-                      <label className="text-[11px]">
-                        {t("import_config")}
-                      </label>
-                      <label className="text-[10px] text-[#8a3ffc] dark:text-[#b57dff] cursor-pointer hover:underline font-bold">
-                        {t("upload_json")}
-                        <input
-                          type="file"
-                          accept=".json"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onload = (ev) => {
-                                const content = ev.target?.result as string;
-                                setImportConfig(content);
-                              };
-                              reader.readAsText(file);
-                            }
-                          }}
-                        />
-                      </label>
-                    </div>
-                    <textarea
-                      className="w-full flex-1 min-h-[120px] p-3 text-[10px] font-mono text-main/60 outline-none transition-all placeholder:text-main/20 custom-scrollbar"
-                      placeholder={t("paste_json")}
-                      value={importConfig}
-                      onChange={(e) => setImportConfig(e.target.value)}
-                    ></textarea>
-
-                    <div
-                      className="flex items-center gap-3 mt-3 mb-4 group cursor-pointer"
-                      onClick={() => setOverwriteConfig(!overwriteConfig)}
+                  <div className="settings-callout !border-amber-500/30 text-[11px] text-amber-700 dark:text-amber-200/80">
+                    完整备份包含可直接登录 Telegram
+                    账号的敏感数据，请像密码一样妥善保管；恢复会覆盖当前用户的工作区数据，但不会修改平台用户名、密码或
+                    2FA。
+                  </div>
+                  <div className="settings-actions">
+                    <button
+                      onClick={handleFullBackupExport}
+                      className="btn-secondary"
+                      disabled={fullBackupLoading}
                     >
+                      {fullBackupLoading ? (
+                        <Spinner className="animate-spin" />
+                      ) : (
+                        <DownloadSimple weight="bold" />
+                      )}
+                      下载完整 ZIP 备份
+                    </button>
+                    <label
+                      className={`btn-gradient cursor-pointer ${fullBackupLoading ? "pointer-events-none opacity-50" : ""}`}
+                    >
+                      {fullBackupLoading ? (
+                        <Spinner className="animate-spin" />
+                      ) : (
+                        <ArrowUDownLeft weight="bold" />
+                      )}
+                      恢复完整 ZIP 备份
+                      <input
+                        type="file"
+                        accept=".zip,application/zip"
+                        className="hidden"
+                        disabled={fullBackupLoading}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          event.currentTarget.value = "";
+                          if (file) void handleFullBackupImport(file);
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="settings-panel">
+                  <div className="settings-panel-header">
+                    <div className="settings-panel-title">
+                      <div className="settings-panel-icon bg-slate-500/10 text-slate-400">
+                        <FloppyDisk weight="bold" size={18} />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold">轻量配置 JSON</h3>
+                        <p className="text-[10px] text-main/45 mt-0.5">
+                          仅用于导入导出任务和配置，不包含会话或完整账户资料。
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="settings-callout">
+                      <label className="mb-2 text-[11px]">
+                        {t("export_config")}
+                      </label>
+                      <p className="settings-hint mb-3">{t("export_desc")}</p>
+                      <div className="settings-actions !mt-3 !pt-3">
+                        <button
+                          onClick={handleExport}
+                          className="btn-secondary"
+                          disabled={configLoading}
+                        >
+                          {configLoading ? (
+                            <Spinner className="animate-spin" />
+                          ) : (
+                            <FloppyDisk weight="bold" />
+                          )}
+                          {t("download_json")}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="settings-callout flex flex-col">
+                      <div className="flex justify-between items-center mb-2">
+                        <label className="text-[11px]">
+                          {t("import_config")}
+                        </label>
+                        <label className="text-[10px] text-[#8a3ffc] dark:text-[#b57dff] cursor-pointer hover:underline font-bold">
+                          {t("upload_json")}
+                          <input
+                            type="file"
+                            accept=".json"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onload = (ev) => {
+                                  const content = ev.target?.result as string;
+                                  setImportConfig(content);
+                                };
+                                reader.readAsText(file);
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
+                      <textarea
+                        className="w-full flex-1 min-h-[120px] p-3 text-[10px] font-mono text-main/60 outline-none transition-all placeholder:text-main/20 custom-scrollbar"
+                        placeholder={t("paste_json")}
+                        value={importConfig}
+                        onChange={(e) => setImportConfig(e.target.value)}
+                      ></textarea>
+
                       <div
-                        className={`w-12 h-7 rounded-full relative transition-all shadow-sm border-2 ${overwriteConfig ? "bg-[#8a3ffc] border-[#8a3ffc]" : "bg-black/20 dark:bg-white/10 border-black/10 dark:border-white/30"}`}
+                        className="flex items-center gap-3 mt-3 mb-4 group cursor-pointer"
+                        onClick={() => setOverwriteConfig(!overwriteConfig)}
                       >
                         <div
-                          className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all shadow-md ${overwriteConfig ? "left-6" : "left-0.5"}`}
-                        ></div>
+                          className={`w-12 h-7 rounded-full relative transition-all shadow-sm border-2 ${overwriteConfig ? "bg-[#8a3ffc] border-[#8a3ffc]" : "bg-black/20 dark:bg-white/10 border-black/10 dark:border-white/30"}`}
+                        >
+                          <div
+                            className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all shadow-md ${overwriteConfig ? "left-6" : "left-0.5"}`}
+                          ></div>
+                        </div>
+                        <span
+                          className={`text-[13px] cursor-pointer select-none transition-colors ${overwriteConfig ? "text-main font-bold" : "text-main/40"}`}
+                        >
+                          {t("overwrite_conflict")}
+                        </span>
                       </div>
-                      <span
-                        className={`text-[13px] cursor-pointer select-none transition-colors ${overwriteConfig ? "text-main font-bold" : "text-main/40"}`}
-                      >
-                        {t("overwrite_conflict")}
-                      </span>
-                    </div>
 
-                    <div className="settings-actions !mt-3 !pt-3">
-                      <button
-                        onClick={handleImport}
-                        className="btn-gradient"
-                        disabled={configLoading}
-                      >
-                        {configLoading ? (
-                          <Spinner className="animate-spin" />
-                        ) : (
-                          t("execute_import")
-                        )}
-                      </button>
+                      <div className="settings-actions !mt-3 !pt-3">
+                        <button
+                          onClick={handleImport}
+                          className="btn-gradient"
+                          disabled={configLoading}
+                        >
+                          {configLoading ? (
+                            <Spinner className="animate-spin" />
+                          ) : (
+                            t("execute_import")
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
