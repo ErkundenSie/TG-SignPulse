@@ -147,7 +147,6 @@ const navGroups = [
             href: "/dashboard/admin/users",
             section: "users",
             label: { zh: "用户管理", en: "User Management" },
-            description: { zh: "单管理员模式", en: "Single administrator" },
             icon: UserList,
             adminOnly: true,
           },
@@ -181,10 +180,6 @@ function DashboardSidebar({
   const [settingsOpen, setSettingsOpen] = useState(onSettings || onAdminUsers);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [identityLoadFailed, setIdentityLoadFailed] = useState(false);
-
-  useEffect(() => {
-    if (onSettings || onAdminUsers) setSettingsOpen(true);
-  }, [onAdminUsers, onSettings]);
 
   useEffect(() => {
     const token = getToken();
@@ -241,7 +236,7 @@ function DashboardSidebar({
                 const children = "children" in item ? item.children : undefined;
 
                 if (children?.length) {
-                  const expanded = settingsOpen || onSettings || onAdminUsers;
+                  const expanded = settingsOpen;
                   return (
                     <div
                       key={item.href}
@@ -295,12 +290,7 @@ function DashboardSidebar({
                                     className="sidebar-nav-icon"
                                   />
                                   <span className="sidebar-nav-text">
-                                    <span>{text(child.label)}</span>
-                                    {"description" in child && (
-                                      <span className="sidebar-nav-description">
-                                        {text(child.description)}
-                                      </span>
-                                    )}
+                                    {text(child.label)}
                                   </span>
                                 </Link>
                               );

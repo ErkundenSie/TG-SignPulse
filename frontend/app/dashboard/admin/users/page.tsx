@@ -177,7 +177,9 @@ export default function AdminUsersPage() {
         <div className="nav-brand min-w-0">
           <div className="navbar-title-block">
             <h1 className="nav-title">用户管理</h1>
-            <p className="nav-subtitle">集中管理普通用户及其独立工作区</p>
+            <p className="nav-subtitle">
+              单管理员模式 · 集中管理普通用户及其独立工作区
+            </p>
           </div>
         </div>
         <div className="top-right-actions shrink-0">
