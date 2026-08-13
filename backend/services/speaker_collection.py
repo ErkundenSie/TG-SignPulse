@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import urlparse
+from zoneinfo import ZoneInfo
 
 from backend.core.config import get_settings
 from backend.core.workspace import get_workspace_key
@@ -38,10 +39,42 @@ class SpeakerCollectionService(ChatMigrationService):
         self._workers: dict[str, asyncio.Task] = {}
         self._scan_locks: dict[str, asyncio.Lock] = {}
         self._data = self._load()
+        if self._migrate_legacy_record_timestamps():
+            self._save()
 
     @staticmethod
     def _now() -> str:
         return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+    @staticmethod
+    def _runtime_timezone() -> ZoneInfo:
+        from backend.services.config import get_config_service
+
+        configured_timezone = get_config_service().get_global_settings().get("timezone")
+        return ZoneInfo(configured_timezone or get_settings().timezone)
+
+    def _migrate_legacy_record_timestamps(self) -> bool:
+        changed = False
+        for record in self._data["records"].values():
+            if record.get("message_timestamp_version") == 2:
+                continue
+            for field in ("first_message_at", "last_message_at"):
+                value = record.get(field)
+                if not isinstance(value, str) or not value:
+                    continue
+                try:
+                    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                except ValueError:
+                    continue
+                record[field] = (
+                    parsed.replace(tzinfo=self._runtime_timezone())
+                    .astimezone(timezone.utc)
+                    .isoformat()
+                )
+                changed = True
+            record["message_timestamp_version"] = 2
+            changed = True
+        return changed
 
     def _resolve_file(self) -> Path:
         path = get_settings().resolve_workdir() / "speaker_collection" / "data.json"
@@ -210,6 +243,7 @@ class SpeakerCollectionService(ChatMigrationService):
                 continue
             record = dict(item)
             record.pop("seen_message_ids", None)
+            record.pop("message_timestamp_version", None)
             record["websites"] = record.get("websites") or self._extract_websites(
                 record.get("bio")
             )
@@ -356,7 +390,7 @@ class SpeakerCollectionService(ChatMigrationService):
                 if not isinstance(message_date, datetime):
                     continue
                 if message_date.tzinfo is None:
-                    message_date = message_date.replace(tzinfo=timezone.utc)
+                    message_date = message_date.replace(tzinfo=self._runtime_timezone())
                 if end_at and message_date > end_at:
                     continue
                 if start_at and message_date < start_at:
@@ -460,6 +494,7 @@ class SpeakerCollectionService(ChatMigrationService):
                         or ""
                     )[:500],
                     "seen_message_ids": seen_message_ids,
+                    "message_timestamp_version": 2,
                     "updated_at": now,
                 }
                 if not existing:
