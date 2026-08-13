@@ -140,6 +140,22 @@ def delete_account_session_string(account_name: str) -> None:
             _save_account_store(data)
 
 
+def clear_account_session_string(account_name: str) -> None:
+    """清除会话凭据，但保留账号资料和状态。"""
+    with _ACCOUNT_STORE_LOCK:
+        data = _load_account_store()
+        accounts = data.get("accounts")
+        if not isinstance(accounts, dict):
+            return
+        entry = accounts.get(account_name)
+        if not isinstance(entry, dict):
+            return
+        entry.pop("session_string", None)
+        entry["updated_at"] = datetime.now(timezone.utc).isoformat()
+        accounts[account_name] = entry
+        _save_account_store(data)
+
+
 def get_account_profile(account_name: str) -> dict[str, Any]:
     data = _load_account_store()
     entry = data.get("accounts", {}).get(account_name)

@@ -19,6 +19,7 @@ from backend.utils.account_locks import get_account_lock
 from backend.utils.names import ensure_child_path, validate_name_segment
 from backend.utils.proxy import build_proxy_dict
 from backend.utils.tg_session import (
+    clear_account_session_string,
     delete_account_session_string,
     delete_session_string_file,
     get_account_profile,
@@ -152,13 +153,38 @@ class TelegramService:
                         }
                     )
             else:
+                seen = set()
                 for session_file in self.session_dir.glob("*.session"):
                     account_name = session_file.stem  # 文件名（不含扩展名）
+                    seen.add(account_name)
                     profile = get_account_profile(account_name)
 
                     if account_name in pending_accounts:
                         continue
 
+                    accounts.append(
+                        {
+                            "name": account_name,
+                            "session_file": str(session_file),
+                            "exists": session_file.exists(),
+                            "size": session_file.stat().st_size
+                            if session_file.exists()
+                            else 0,
+                            "remark": profile.get("remark"),
+                            "proxy": profile.get("proxy"),
+                            **self._account_status_payload(account_name),
+                        }
+                    )
+
+                for account_name in list_account_names():
+                    try:
+                        account_name = self._validate_account_name(account_name)
+                    except ValueError:
+                        continue
+                    if account_name in seen or account_name in pending_accounts:
+                        continue
+                    session_file = self._session_file_path(account_name)
+                    profile = get_account_profile(account_name)
                     accounts.append(
                         {
                             "name": account_name,
@@ -210,15 +236,17 @@ class TelegramService:
             # 但为了稳妥，如果缓存没命中，再查文件
             pass
 
-        if is_string_session_mode():
-            if get_account_session_string(account_name):
-                return True
-            if load_session_string_file(self.session_dir, account_name):
-                return True
-            return False
+        return self._has_session_credentials(account_name) or (
+            account_name in list_account_names()
+        )
 
-        session_file = self._session_file_path(account_name)
-        return session_file.exists()
+    def _has_session_credentials(self, account_name: str) -> bool:
+        account_name = self._validate_account_name(account_name)
+        if get_account_session_string(account_name):
+            return True
+        if load_session_string_file(self.session_dir, account_name):
+            return True
+        return self._session_file_path(account_name).exists()
 
     async def check_account_status(
         self,
@@ -275,6 +303,24 @@ class TelegramService:
                 "status": "not_found",
                 "message": "账号不存在",
                 "code": "ACCOUNT_NOT_FOUND",
+                "checked_at": checked_at,
+                "needs_relogin": True,
+            }
+
+        if not self._has_session_credentials(account_name):
+            set_account_status(
+                account_name,
+                status="invalid",
+                message="session 已失效，请重新登录",
+                code="ACCOUNT_SESSION_INVALID",
+                needs_relogin=True,
+            )
+            return {
+                "account_name": account_name,
+                "ok": False,
+                "status": "invalid",
+                "message": "session 已失效，请重新登录",
+                "code": "ACCOUNT_SESSION_INVALID",
                 "checked_at": checked_at,
                 "needs_relogin": True,
             }
@@ -567,6 +613,39 @@ class TelegramService:
             return True
         except OSError:
             return False
+
+    async def invalidate_account_session(self, account_name: str) -> None:
+        """清除失效会话，同时保留账号资料、任务和缓存数据。"""
+        account_name = self._validate_account_name(account_name)
+        from tg_signer.core import close_client_by_name
+
+        try:
+            await close_client_by_name(account_name, workdir=self.session_dir)
+        except Exception:
+            pass
+
+        for suffix in (
+            ".session",
+            ".session-journal",
+            ".session-shm",
+            ".session-wal",
+            ".session_string",
+        ):
+            try:
+                self._session_file_path(account_name, suffix).unlink(missing_ok=True)
+            except OSError:
+                pass
+
+        clear_account_session_string(account_name)
+        delete_session_string_file(self.session_dir, account_name)
+        set_account_status(
+            account_name,
+            status="invalid",
+            message="session 已失效，请重新登录",
+            code="ACCOUNT_SESSION_INVALID",
+            needs_relogin=True,
+        )
+        self._accounts_cache = None
 
     async def start_login(
         self, account_name: str, phone_number: str, proxy: Optional[str] = None

@@ -37,6 +37,41 @@ def test_account_store_concurrent_updates_keep_all_accounts(monkeypatch, tmp_pat
         assert entry["status"] == "connected"
 
 
+def test_invalid_session_cleanup_keeps_account_profile(monkeypatch, tmp_path):
+    from backend.services import telegram
+    from backend.utils import tg_session
+
+    store_path = tmp_path / "accounts.json"
+    monkeypatch.setattr(tg_session, "_account_store_path", lambda: store_path)
+    monkeypatch.setattr(telegram, "is_string_session_mode", lambda: False)
+
+    tg_session.set_account_session_string("account-a", "expired-session")
+    tg_session.set_account_profile(
+        "account-a", remark="保留备注", proxy="socks5://127.0.0.1:1080"
+    )
+
+    service = object.__new__(telegram.TelegramService)
+    service.session_dir = tmp_path
+    service._accounts_cache = None
+
+    async def close_client(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr("tg_signer.core.close_client_by_name", close_client)
+    asyncio.run(service.invalidate_account_session("account-a"))
+
+    profile = tg_session.get_account_profile("account-a")
+    assert tg_session.get_account_session_string("account-a") is None
+    assert profile["remark"] == "保留备注"
+    assert profile["proxy"] == "socks5://127.0.0.1:1080"
+    assert profile["needs_relogin"] is True
+
+    accounts = service.list_accounts(force_refresh=True)
+    assert [(item["name"], item["needs_relogin"]) for item in accounts] == [
+        ("account-a", True)
+    ]
+
+
 def _request_with_ip(headers=None) -> Request:
     return Request(
         {

@@ -1517,17 +1517,9 @@ class SignTaskService:
         try:
             from backend.services.telegram import get_telegram_service
 
-            await get_telegram_service().delete_account(account_name)
+            await get_telegram_service().invalidate_account_session(account_name)
         except Exception as e:
             print(f"DEBUG: 清理无效 Session 失败: {e}")
-
-        # 清理 chats 缓存，避免后续误用旧数据
-        try:
-            cache_file = self._account_dir(account_name) / "chats_cache.json"
-            if cache_file.exists():
-                cache_file.unlink()
-        except Exception:
-            pass
 
     async def refresh_account_chats(self, account_name: str) -> List[Dict[str, Any]]:
         """
