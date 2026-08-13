@@ -891,6 +891,7 @@ class TelegramService:
             PhoneCodeInvalid,
             SessionPasswordNeeded,
         )
+        from tg_signer.core import close_client_by_name
 
         account_name = self._validate_account_name(account_name)
         # 尝试从全局字典获取之前的 client
@@ -972,6 +973,7 @@ class TelegramService:
 
                     # 断开连接并清理
                     await client.disconnect()
+                    await close_client_by_name(account_name, workdir=self.session_dir)
                     _login_sessions.pop(session_key, None)
                     _release_account_lock()
 
@@ -1004,6 +1006,9 @@ class TelegramService:
 
                         # 断开连接并清理
                         await client.disconnect()
+                        await close_client_by_name(
+                            account_name, workdir=self.session_dir
+                        )
                         _login_sessions.pop(session_key, None)
                         _release_account_lock()
 

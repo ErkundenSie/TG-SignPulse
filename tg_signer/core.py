@@ -553,14 +553,23 @@ def get_client(
         existing = _CLIENT_INSTANCES[key]
         requested_no_updates = kwargs.get("no_updates")
         existing_no_updates = getattr(existing, "_tg_signpulse_no_updates", None)
+        requested_session_string = session_string or None
+        existing_session_string = getattr(existing, "session_string", None) or None
+        session_changed = (
+            bool(in_memory)
+            and bool(getattr(existing, "in_memory", False))
+            and bool(requested_session_string)
+            and requested_session_string != existing_session_string
+        )
         refs = _CLIENT_REFS.get(key, 0)
         if (
-            requested_no_updates is not None
-            and existing_no_updates is not None
-            and requested_no_updates != existing_no_updates
-            and refs <= 0
-            and not getattr(existing, "is_connected", False)
-        ):
+            (
+                requested_no_updates is not None
+                and existing_no_updates is not None
+                and requested_no_updates != existing_no_updates
+            )
+            or session_changed
+        ) and (refs <= 0 and not getattr(existing, "is_connected", False)):
             _CLIENT_INSTANCES.pop(key, None)
             _LOGIN_USERS.pop(key, None)
         else:

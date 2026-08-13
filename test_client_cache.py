@@ -35,7 +35,9 @@ def test_get_client_rebuilds_disconnected_cache_when_no_updates_changes(
     assert second._tg_signpulse_no_updates is False
 
 
-def test_get_client_keeps_connected_cache_when_no_updates_changes(monkeypatch, tmp_path):
+def test_get_client_keeps_connected_cache_when_no_updates_changes(
+    monkeypatch, tmp_path
+):
     from tg_signer import core
 
     monkeypatch.setattr(core, "Client", DummyClient)
@@ -48,6 +50,32 @@ def test_get_client_keeps_connected_cache_when_no_updates_changes(monkeypatch, t
     second = core.get_client("account", workdir=tmp_path, no_updates=False)
 
     assert second is first
+
+
+def test_get_client_rebuilds_disconnected_memory_cache_when_session_changes(
+    monkeypatch, tmp_path
+):
+    from tg_signer import core
+
+    monkeypatch.setattr(core, "Client", DummyClient)
+    core._CLIENT_INSTANCES.clear()
+    core._CLIENT_REFS.clear()
+    core._CLIENT_ASYNC_LOCKS.clear()
+
+    first = core.get_client(
+        "account",
+        workdir=tmp_path,
+        session_string="old-session",
+        in_memory=True,
+    )
+    second = core.get_client(
+        "account",
+        workdir=tmp_path,
+        session_string="new-session",
+        in_memory=True,
+    )
+
+    assert second is not first
 
 
 class DummyStoppableClient:
