@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from backend.core import auth as auth_core
 from backend.core.auth import authenticate_user, create_access_token, verify_totp
 from backend.core.database import get_db
+from backend.core.workspace import activate_workspace, reset_workspace
 from backend.core.security import verify_password
 from backend.models.user import User
 from backend.schemas.auth import LoginRequest, TokenResponse, UserOut
@@ -133,7 +134,11 @@ def login(
         from backend.services.push_notifications import send_login_notification
 
         ip_address = _client_ip(request)
-        settings = get_config_service().get_global_settings()
+        workspace_token = activate_workspace(user.id, user.is_admin)
+        try:
+            settings = get_config_service().get_global_settings()
+        finally:
+            reset_workspace(workspace_token)
         background_tasks.add_task(
             send_login_notification,
             settings,

@@ -12,6 +12,7 @@ class TaskLog(Base):
     __tablename__ = "task_logs"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False, index=True)
     status = Column(String(32), nullable=False, default="pending")
     log_path = Column(String(255), nullable=True)
@@ -20,3 +21,4 @@ class TaskLog(Base):
     finished_at = Column(DateTime, nullable=True)
 
     task = relationship("Task", back_populates="logs")
+    user = relationship("User")

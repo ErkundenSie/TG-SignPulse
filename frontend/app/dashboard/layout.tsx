@@ -27,7 +27,9 @@ import {
 } from "@phosphor-icons/react";
 import { ThemeLanguageToggle } from "../../components/ThemeLanguageToggle";
 import { useLanguage } from "../../context/LanguageContext";
-import { logout } from "../../lib/auth";
+import { getToken, logout } from "../../lib/auth";
+import { getMe } from "../../lib/api";
+import type { CurrentUser } from "../../lib/types";
 
 const navGroups = [
   {
@@ -168,10 +170,37 @@ function DashboardSidebar({
   const settingsSection = searchParams.get("section") || "account";
   const onSettings = pathname.startsWith("/dashboard/settings");
   const [settingsOpen, setSettingsOpen] = useState(onSettings);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
 
   useEffect(() => {
     if (onSettings) setSettingsOpen(true);
   }, [onSettings]);
+
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+    getMe(token)
+      .then(setCurrentUser)
+      .catch(() => undefined);
+  }, []);
+
+  const groups = [
+    ...navGroups,
+    ...(currentUser?.is_admin
+      ? [
+          {
+            label: { zh: "管理", en: "Administration" },
+            items: [
+              {
+                href: "/dashboard/admin/users",
+                label: { zh: "用户管理", en: "User Management" },
+                icon: UserList,
+              },
+            ],
+          },
+        ]
+      : []),
+  ];
 
   return (
     <aside className={`sidebar-shell${mobileOpen ? " is-open" : ""}`}>
@@ -203,7 +232,7 @@ function DashboardSidebar({
       </div>
 
       <nav className="sidebar-nav">
-        {navGroups.map((group) => (
+        {groups.map((group) => (
           <div className="sidebar-group" key={group.label.zh}>
             <div className="sidebar-group-label">{text(group.label)}</div>
             <div className="sidebar-group-items">
@@ -316,9 +345,18 @@ function DashboardSidebar({
           </div>
           <div className="sidebar-user-meta">
             <div className="sidebar-user-name">
-              {language === "zh" ? "管理员" : "Admin"}
+              {currentUser?.username ||
+                (language === "zh" ? "加载中" : "Loading")}
             </div>
-            <div className="sidebar-user-role">admin</div>
+            <div className="sidebar-user-role">
+              {currentUser?.is_admin
+                ? language === "zh"
+                  ? "管理员"
+                  : "Administrator"
+                : language === "zh"
+                  ? "普通用户"
+                  : "User"}
+            </div>
           </div>
           <button
             type="button"

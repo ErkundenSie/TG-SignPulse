@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator, Dict, List, Optional
 from urllib.parse import urlparse
 
+from backend.core.workspace import get_workspace_key
 from backend.services.chat_migration import ChatMigrationService
 
 logger = logging.getLogger("backend.bulk_group_membership")
@@ -555,11 +556,11 @@ class BulkGroupMembershipService(ChatMigrationService):
         self._tasks.clear()
 
 
-_service: Optional[BulkGroupMembershipService] = None
+_services: dict[str, BulkGroupMembershipService] = {}
 
 
 def get_bulk_group_membership_service() -> BulkGroupMembershipService:
-    global _service
-    if _service is None:
-        _service = BulkGroupMembershipService()
-    return _service
+    key = get_workspace_key()
+    if key not in _services:
+        _services[key] = BulkGroupMembershipService()
+    return _services[key]

@@ -18,6 +18,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from backend.core.config import get_settings
+from backend.core.workspace import get_workspace_key
 from backend.utils.account_locks import get_account_lock
 from backend.utils.names import validate_name_segment
 from backend.utils.proxy import build_proxy_dict
@@ -860,11 +861,11 @@ class ChatMigrationService:
         return {key: value for key, value in job.items() if key != "cancel_requested"}
 
 
-_chat_migration_service: Optional[ChatMigrationService] = None
+_chat_migration_services: dict[str, ChatMigrationService] = {}
 
 
 def get_chat_migration_service() -> ChatMigrationService:
-    global _chat_migration_service
-    if _chat_migration_service is None:
-        _chat_migration_service = ChatMigrationService()
-    return _chat_migration_service
+    key = get_workspace_key()
+    if key not in _chat_migration_services:
+        _chat_migration_services[key] = ChatMigrationService()
+    return _chat_migration_services[key]

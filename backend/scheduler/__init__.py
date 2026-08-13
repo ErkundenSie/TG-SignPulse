@@ -9,6 +9,12 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_session_local
 from backend.models.task import Task
+from backend.models.user import User
+from backend.core.workspace import (
+    activate_workspace,
+    get_workspace_context,
+    reset_workspace,
+)
 from backend.services.tasks import run_task_once
 
 scheduler: AsyncIOScheduler | None = None
@@ -18,13 +24,7 @@ def get_scheduler_timezone() -> str:
     from backend.core.config import get_settings
 
     settings = get_settings()
-    try:
-        from backend.services.config import get_config_service, validate_timezone
-
-        global_settings = get_config_service().get_global_settings()
-        return validate_timezone(global_settings.get("timezone") or settings.timezone)
-    except Exception:
-        return settings.timezone
+    return settings.timezone
 
 
 def create_cron_trigger(cron_str: str) -> CronTrigger:
@@ -158,7 +158,11 @@ def _schedule_range_catchup_if_needed(task_config: dict) -> None:
     if _task_ran_in_window(task_config, window_start, window_end):
         return
 
-    job_id = f"range-catchup-{account_name}-{task_name}"
+    workspace = get_workspace_context()
+    if workspace is None:
+        return
+    user_id = workspace.user_id
+    job_id = f"range-catchup-{user_id}-{account_name}-{task_name}"
     existing = scheduler.get_job(job_id)
     if existing and existing.next_run_time and existing.next_run_time >= now:
         return
@@ -168,7 +172,7 @@ def _schedule_range_catchup_if_needed(task_config: dict) -> None:
             _job_run_sign_task,
             trigger=DateTrigger(run_date=now, timezone=tz),
             id=job_id,
-            args=[account_name, task_name],
+            args=[user_id, account_name, task_name],
             replace_existing=True,
         )
         logger.info(
@@ -186,20 +190,33 @@ def _schedule_range_catchup_if_needed(task_config: dict) -> None:
         )
 
 
-async def _job_run_task(task_id: int) -> None:
+def _activate_user_workspace(db: Session, user_id: int):
+    user = db.query(User).filter(User.id == user_id, User.is_active.is_(True)).first()
+    return activate_workspace(user.id, user.is_admin) if user else None
+
+
+async def _job_run_task(task_id: int, user_id: int) -> None:
     db: Session = get_session_local()()
+    workspace_token = None
     try:
+        workspace_token = _activate_user_workspace(db, user_id)
+        if workspace_token is None:
+            return
         # 这里的查询是同步的，对于 SQLite 且任务量不大可以接受
-        task = db.query(Task).filter(Task.id == task_id).first()
+        task = (
+            db.query(Task).filter(Task.id == task_id, Task.user_id == user_id).first()
+        )
         if not task or not task.enabled:
             return
         # run_task_once 将被改为 async
         await run_task_once(db, task)
     finally:
+        if workspace_token is not None:
+            reset_workspace(workspace_token)
         db.close()
 
 
-async def _job_run_sign_task(account_name: str, task_name: str) -> None:
+async def _job_run_sign_task(user_id: int, account_name: str, task_name: str) -> None:
     """运行签到任务的 Job 包装器"""
     import asyncio
     import logging
@@ -209,7 +226,12 @@ async def _job_run_sign_task(account_name: str, task_name: str) -> None:
     from backend.services.sign_tasks import get_sign_task_service
 
     logger = logging.getLogger("backend.scheduler")
+    db: Session = get_session_local()()
+    workspace_token = None
     try:
+        workspace_token = _activate_user_workspace(db, user_id)
+        if workspace_token is None:
+            return
         logger.info(f"Scheduler: 正在运行签到任务 {task_name} (账号: {account_name})")
 
         # 获取任务配置，检查是否为随机时间段模式
@@ -273,16 +295,27 @@ async def _job_run_sign_task(account_name: str, task_name: str) -> None:
             logger.error(f"Scheduler: 任务 {task_name} 执行失败: {result.get('error')}")
     except Exception as e:
         logger.error(f"Scheduler: 运行签到任务 {task_name} 失败: {e}", exc_info=True)
+    finally:
+        if workspace_token is not None:
+            reset_workspace(workspace_token)
+        db.close()
 
 
-async def _job_run_automation_rule(rule_id: str, trigger_index: int) -> None:
+async def _job_run_automation_rule(
+    user_id: int, rule_id: str, trigger_index: int
+) -> None:
     """运行自动化规则定时触发器。"""
     import logging
 
     from backend.services.automation_rules import get_automation_rule_service
 
     logger = logging.getLogger("backend.scheduler")
+    db: Session = get_session_local()()
+    workspace_token = None
     try:
+        workspace_token = _activate_user_workspace(db, user_id)
+        if workspace_token is None:
+            return
         await get_automation_rule_service().execute(
             rule_id,
             trigger_type="timer",
@@ -295,6 +328,10 @@ async def _job_run_automation_rule(rule_id: str, trigger_index: int) -> None:
             exc,
             exc_info=True,
         )
+    finally:
+        if workspace_token is not None:
+            reset_workspace(workspace_token)
+        db.close()
 
 
 async def _job_maintenance() -> None:
@@ -308,105 +345,142 @@ async def _job_maintenance() -> None:
         count = cleanup_old_logs(db, days=3)
         print(f"Maintenance: 已清理 {count} 条数据库任务日志")
 
-        # 清理签到任务日志
-        get_sign_task_service()._cleanup_old_logs()
+        for user in db.query(User).filter(User.is_active.is_(True)).all():
+            workspace_token = activate_workspace(user.id, user.is_admin)
+            try:
+                get_sign_task_service()._cleanup_old_logs()
+            finally:
+                reset_workspace(workspace_token)
     finally:
         db.close()
 
 
-async def sync_jobs() -> None:
+async def sync_jobs(user_id: int | None = None) -> None:
     """
     Sync APScheduler jobs from DB tasks table and file-based sign tasks.
     """
     if scheduler is None:
         return
 
-    from backend.services.sign_tasks import get_sign_task_service
-
     db: Session = get_session_local()()
     try:
-        # 1. 同步数据库任务
-        tasks = db.query(Task).filter(Task.enabled).all()
-        existing_ids = {
-            job.id
-            for job in scheduler.get_jobs()
-            if job.id.startswith("db-") or job.id.startswith("sign-")
-        }
-        desired_ids = set()
+        workspace = get_workspace_context()
+        target_user_ids = (
+            [user_id]
+            if user_id is not None
+            else (
+                [workspace.user_id]
+                if workspace is not None
+                else [
+                    row.id
+                    for row in db.query(User).filter(User.is_active.is_(True)).all()
+                ]
+            )
+        )
 
-        for task in tasks:
-            job_id = f"db-{task.id}"
-            desired_ids.add(job_id)
-
+        for current_user_id in target_user_ids:
+            workspace_token = _activate_user_workspace(db, current_user_id)
+            if workspace_token is None:
+                continue
             try:
-                trigger = create_cron_trigger(task.cron)
-                if job_id in existing_ids:
-                    scheduler.reschedule_job(job_id, trigger=trigger)
-                else:
-                    scheduler.add_job(
-                        _job_run_task,
-                        trigger=trigger,
-                        id=job_id,
-                        args=[task.id],
-                        replace_existing=True,
-                    )
-            except Exception as e:
-                print(f"Error scheduling DB task {task.id}: {e}")
+                from backend.services.sign_tasks import get_sign_task_service
 
-        # 2. 同步签到任务 (SignTask)
-        # 使用缓存的任务列表，减少 I/O
-        sign_task_service = get_sign_task_service()
-        sign_tasks = sign_task_service.list_tasks(force_refresh=False)
-        for st in sign_tasks:
-            account_name = str(st.get("account_name") or "").strip()
-            task_name = str(st.get("name") or "").strip()
-            if not account_name or not task_name:
-                print(f"Skip scheduling sign task with missing account/name: {st}")
-                continue
-            if st.get("monitor_only"):
-                job_id = f"sign-{account_name}-{task_name}"
-                desired_ids.discard(job_id)
-                if job_id in existing_ids:
+                # 1. 同步数据库任务
+                tasks = (
+                    db.query(Task)
+                    .filter(Task.enabled, Task.user_id == current_user_id)
+                    .all()
+                )
+                existing_ids = {
+                    job.id
+                    for job in scheduler.get_jobs()
+                    if job.id.startswith(f"db-{current_user_id}-")
+                    or job.id.startswith(f"sign-{current_user_id}-")
+                    or job.id.startswith(f"range-catchup-{current_user_id}-")
+                }
+                desired_ids = set()
+
+                for task in tasks:
+                    job_id = f"db-{current_user_id}-{task.id}"
+                    desired_ids.add(job_id)
+
+                    try:
+                        trigger = create_cron_trigger(task.cron)
+                        if job_id in existing_ids:
+                            scheduler.reschedule_job(job_id, trigger=trigger)
+                        else:
+                            scheduler.add_job(
+                                _job_run_task,
+                                trigger=trigger,
+                                id=job_id,
+                                args=[task.id, current_user_id],
+                                replace_existing=True,
+                            )
+                    except Exception as e:
+                        print(f"Error scheduling DB task {task.id}: {e}")
+
+                # 2. 同步签到任务 (SignTask)
+                # 使用缓存的任务列表，减少 I/O
+                sign_task_service = get_sign_task_service()
+                sign_tasks = sign_task_service.list_tasks(force_refresh=False)
+                for st in sign_tasks:
+                    account_name = str(st.get("account_name") or "").strip()
+                    task_name = str(st.get("name") or "").strip()
+                    if not account_name or not task_name:
+                        print(
+                            f"Skip scheduling sign task with missing account/name: {st}"
+                        )
+                        continue
+                    if st.get("monitor_only"):
+                        job_id = f"sign-{current_user_id}-{account_name}-{task_name}"
+                        desired_ids.discard(job_id)
+                        if job_id in existing_ids:
+                            scheduler.remove_job(job_id)
+                        continue
+
+                    job_id = f"sign-{current_user_id}-{account_name}-{task_name}"
+                    desired_ids.add(job_id)
+
+                    # SignTask 目前默认都是启用的，或者根据 st['enabled']
+                    if not st.get("enabled", True):
+                        if job_id in existing_ids:
+                            scheduler.remove_job(job_id)
+                        continue
+
+                    try:
+                        trigger = create_cron_trigger(st["sign_at"])
+                        if st.get("execution_mode") == "range" and st.get(
+                            "range_start"
+                        ):
+                            trigger = create_cron_trigger(st["range_start"])
+
+                        if job_id in existing_ids:
+                            scheduler.reschedule_job(job_id, trigger=trigger)
+                        else:
+                            # 使用新的 job wrapper
+                            scheduler.add_job(
+                                _job_run_sign_task,
+                                trigger=trigger,
+                                id=job_id,
+                                args=[current_user_id, account_name, task_name],
+                                replace_existing=True,
+                            )
+                    except Exception as e:
+                        print(f"Error scheduling sign task {task_name}: {e}")
+                    else:
+                        _schedule_range_catchup_if_needed(st)
+
+                # remove obsolete jobs
+                for job_id in existing_ids - desired_ids:
                     scheduler.remove_job(job_id)
-                continue
 
-            job_id = f"sign-{account_name}-{task_name}"
-            desired_ids.add(job_id)
+                from backend.services.automation_rules import (
+                    get_automation_rule_service,
+                )
 
-            # SignTask 目前默认都是启用的，或者根据 st['enabled']
-            if not st.get("enabled", True):
-                if job_id in existing_ids:
-                    scheduler.remove_job(job_id)
-                continue
-
-            try:
-                trigger = create_cron_trigger(st["sign_at"])
-                if st.get("execution_mode") == "range" and st.get("range_start"):
-                    trigger = create_cron_trigger(st["range_start"])
-
-                if job_id in existing_ids:
-                    scheduler.reschedule_job(job_id, trigger=trigger)
-                else:
-                    # 使用新的 job wrapper
-                    scheduler.add_job(
-                        _job_run_sign_task,
-                        trigger=trigger,
-                        id=job_id,
-                        args=[account_name, task_name],
-                        replace_existing=True,
-                    )
-            except Exception as e:
-                print(f"Error scheduling sign task {task_name}: {e}")
-            else:
-                _schedule_range_catchup_if_needed(st)
-
-        # remove obsolete jobs
-        for job_id in existing_ids - desired_ids:
-            scheduler.remove_job(job_id)
-
-        from backend.services.automation_rules import get_automation_rule_service
-
-        await get_automation_rule_service().sync_schedules()
+                await get_automation_rule_service().sync_schedules()
+            finally:
+                reset_workspace(workspace_token)
     finally:
         db.close()
 
@@ -457,7 +531,11 @@ def add_or_update_sign_task_job(
     if not scheduler:
         return
 
-    job_id = f"sign-{account_name}-{task_name}"
+    workspace = get_workspace_context()
+    if workspace is None:
+        return
+    user_id = workspace.user_id
+    job_id = f"sign-{user_id}-{account_name}-{task_name}"
 
     if not enabled:
         remove_sign_task_job(account_name, task_name)
@@ -472,7 +550,7 @@ def add_or_update_sign_task_job(
             _job_run_sign_task,
             trigger=trigger,
             id=job_id,
-            args=[account_name, task_name],
+            args=[user_id, account_name, task_name],
             replace_existing=True,
         )
         try:
@@ -497,7 +575,10 @@ def remove_sign_task_job(account_name: str, task_name: str) -> None:
     if not scheduler:
         return
 
-    job_id = f"sign-{account_name}-{task_name}"
+    workspace = get_workspace_context()
+    if workspace is None:
+        return
+    job_id = f"sign-{workspace.user_id}-{account_name}-{task_name}"
     try:
         if scheduler.get_job(job_id):
             scheduler.remove_job(job_id)

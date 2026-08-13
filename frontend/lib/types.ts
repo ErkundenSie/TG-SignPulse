@@ -36,4 +36,10 @@ export type TokenResponse = {
   token_type: string;
 };
 
-
+export type CurrentUser = {
+  id: number;
+  username: string;
+  is_admin: boolean;
+  is_active: boolean;
+  created_at: string;
+};

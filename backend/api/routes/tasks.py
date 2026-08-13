@@ -28,7 +28,7 @@ router = APIRouter()
 
 @router.get("", response_model=list[TaskOut])
 def list_tasks(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    return task_service.list_tasks(db)
+    return task_service.list_tasks(db, current_user.id)
 
 
 @router.post("", response_model=TaskOut, status_code=status.HTTP_201_CREATED)
@@ -37,7 +37,11 @@ async def create_task(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    account = db.query(Account).filter(Account.id == payload.account_id).first()
+    account = (
+        db.query(Account)
+        .filter(Account.id == payload.account_id, Account.user_id == current_user.id)
+        .first()
+    )
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
     task = task_service.create_task(
@@ -46,6 +50,7 @@ async def create_task(
         cron=payload.cron,
         enabled=payload.enabled,
         account_id=payload.account_id,
+        user_id=current_user.id,
     )
     await sync_jobs()
     return task
@@ -57,7 +62,7 @@ def get_task(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    task = task_service.get_task(db, task_id)
+    task = task_service.get_task(db, task_id, current_user.id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
@@ -70,11 +75,18 @@ async def update_task(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    task = task_service.get_task(db, task_id)
+    task = task_service.get_task(db, task_id, current_user.id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     if payload.account_id is not None:
-        account = db.query(Account).filter(Account.id == payload.account_id).first()
+        account = (
+            db.query(Account)
+            .filter(
+                Account.id == payload.account_id,
+                Account.user_id == current_user.id,
+            )
+            .first()
+        )
         if not account:
             raise HTTPException(status_code=404, detail="Account not found")
     updated = task_service.update_task(
@@ -95,7 +107,7 @@ async def delete_task(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    task = task_service.get_task(db, task_id)
+    task = task_service.get_task(db, task_id, current_user.id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     task_service.delete_task(db, task)
@@ -109,7 +121,7 @@ async def run_task(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    task = task_service.get_task(db, task_id)
+    task = task_service.get_task(db, task_id, current_user.id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     log = await task_service.run_task_once(db, task)
@@ -123,10 +135,10 @@ def list_logs(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    task = task_service.get_task(db, task_id)
+    task = task_service.get_task(db, task_id, current_user.id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    logs = task_service.list_task_logs(db, task_id, limit=limit)
+    logs = task_service.list_task_logs(db, task_id, current_user.id, limit=limit)
     return logs
 
 
@@ -140,7 +152,11 @@ async def task_logs_ws(
     """
     WebSocket 实时推送数据库任务日志
     """
-    if not await accept_authenticated_websocket(websocket, db, token):
+    current_user = await accept_authenticated_websocket(websocket, db, token)
+    if current_user is None:
+        return
+    if not task_service.get_task(db, task_id, current_user.id):
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
     await stream_log_updates(
@@ -157,7 +173,11 @@ def get_log_output(
     current_user=Depends(get_current_user),
 ):
     """获取任务日志的完整输出文件内容"""
-    log = db.query(TaskLog).filter(TaskLog.id == log_id).first()
+    log = (
+        db.query(TaskLog)
+        .filter(TaskLog.id == log_id, TaskLog.user_id == current_user.id)
+        .first()
+    )
     if not log:
         raise HTTPException(status_code=404, detail="Log not found")
 

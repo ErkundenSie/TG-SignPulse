@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from backend.core.config import get_settings
+from backend.core.workspace import get_workspace_key
 from backend.utils.account_locks import get_account_lock
 from backend.utils.names import ensure_child_path, validate_name_segment
 from backend.utils.proxy import build_proxy_dict
@@ -2090,11 +2091,11 @@ class SignTaskService:
 
 
 # 创建全局实例
-_sign_task_service: Optional[SignTaskService] = None
+_sign_task_services: dict[str, SignTaskService] = {}
 
 
 def get_sign_task_service() -> SignTaskService:
-    global _sign_task_service
-    if _sign_task_service is None:
-        _sign_task_service = SignTaskService()
-    return _sign_task_service
+    key = get_workspace_key()
+    if key not in _sign_task_services:
+        _sign_task_services[key] = SignTaskService()
+    return _sign_task_services[key]

@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from backend.core.auth import get_current_user
 from backend.core.database import get_db
 from backend.models.task_log import TaskLog
+from backend.models.task import Task
 
 router = APIRouter()
 
@@ -23,7 +24,9 @@ async def _logs_event_stream(
     while True:
         logs = (
             db.query(TaskLog)
+            .join(Task, Task.id == TaskLog.task_id)
             .filter(TaskLog.id > last_id)
+            .filter(TaskLog.user_id == current_user.id)
             .order_by(TaskLog.id.asc())
             .limit(100)
             .all()

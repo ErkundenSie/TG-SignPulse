@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from pyrogram.enums import ChatMembersFilter
 
+from backend.core.workspace import get_workspace_key
 from backend.services.chat_migration import ChatMigrationService
 
 
@@ -174,11 +175,11 @@ class MemberScanService(ChatMigrationService):
         return await self._with_client(account_name, _scan)
 
 
-_member_scan_service: Optional[MemberScanService] = None
+_member_scan_services: dict[str, MemberScanService] = {}
 
 
 def get_member_scan_service() -> MemberScanService:
-    global _member_scan_service
-    if _member_scan_service is None:
-        _member_scan_service = MemberScanService()
-    return _member_scan_service
+    key = get_workspace_key()
+    if key not in _member_scan_services:
+        _member_scan_services[key] = MemberScanService()
+    return _member_scan_services[key]

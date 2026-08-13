@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from backend.api.routes import (
     accounts,
+    admin_users,
     automation_rules,
     auth,
     bulk_group_membership,
@@ -18,6 +19,7 @@ from backend.api.routes import (
 router = APIRouter()
 router.include_router(auth.router, prefix="/auth", tags=["auth"])
 router.include_router(user.router, prefix="/user", tags=["user"])
+router.include_router(admin_users.router, prefix="/admin/users", tags=["admin-users"])
 router.include_router(accounts.router, prefix="/accounts", tags=["accounts"])
 router.include_router(
     bulk_group_membership.router,

@@ -525,7 +525,8 @@ async def sign_task_logs_ws(
     """
     WebSocket 实时推送签到任务日志
     """
-    if not await accept_authenticated_websocket(websocket, db, token):
+    current_user = await accept_authenticated_websocket(websocket, db, token)
+    if current_user is None:
         return
 
     service = get_sign_task_service()

@@ -12,6 +12,7 @@ class Task(Base):
     __tablename__ = "tasks"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     name = Column(String(100), nullable=False)
     cron = Column(String(64), nullable=False)
     enabled = Column(Boolean, default=True, nullable=False)
@@ -23,4 +24,5 @@ class Task(Base):
     )
 
     account = relationship("Account", back_populates="tasks")
+    user = relationship("User")
     logs = relationship("TaskLog", back_populates="task", cascade="all,delete")

@@ -19,6 +19,9 @@ from backend.core.database import (  # noqa: E402
     get_session_local,
     init_engine,
 )
+from backend.core.migrations import migrate_schema  # noqa: E402
+from backend.core.workspace import activate_workspace, reset_workspace  # noqa: E402
+from backend.models.user import User  # noqa: E402
 from backend.scheduler import (  # noqa: E402
     init_scheduler,
     shutdown_scheduler,
@@ -26,7 +29,10 @@ from backend.scheduler import (  # noqa: E402
 )
 from backend.services.users import ensure_admin  # noqa: E402
 from backend.utils.app_logging import setup_app_logging  # noqa: E402
-from backend.utils.paths import ensure_data_dirs  # noqa: E402
+from backend.utils.paths import (
+    ensure_data_dirs,
+    ensure_user_workspace_dirs,
+)  # noqa: E402
 from backend.utils.static_files import StaticFileResolver  # noqa: E402
 
 
@@ -128,8 +134,10 @@ async def on_startup() -> None:
     ensure_data_dirs(settings)
     init_engine()
     Base.metadata.create_all(bind=get_engine())
+    migrate_schema(get_engine())
     with get_session_local()() as db:
-        ensure_admin(db)
+        admin = ensure_admin(db)
+        ensure_user_workspace_dirs(settings, admin.id, admin.is_admin)
     await init_scheduler(sync_on_startup=False)
 
     async def _post_startup() -> None:
@@ -143,9 +151,16 @@ async def on_startup() -> None:
                 get_speaker_collection_service,
             )
 
-            await get_keyword_monitor_service().restart_from_tasks()
-            await get_automation_rule_service().start(run_startup=True)
-            await get_speaker_collection_service().start()
+            with get_session_local()() as db:
+                users = db.query(User).filter(User.is_active.is_(True)).all()
+            for user in users:
+                workspace_token = activate_workspace(user.id, user.is_admin)
+                try:
+                    await get_keyword_monitor_service().restart_from_tasks()
+                    await get_automation_rule_service().start(run_startup=True)
+                    await get_speaker_collection_service().start()
+                finally:
+                    reset_workspace(workspace_token)
         except Exception as exc:
             logging.getLogger("backend.startup").error(
                 f"Delayed scheduler sync failed: {exc}"
@@ -167,9 +182,16 @@ async def on_shutdown() -> None:
         )
         from backend.services.speaker_collection import get_speaker_collection_service
 
-        await get_keyword_monitor_service().stop()
-        await get_automation_rule_service().stop()
-        await get_bulk_group_membership_service().stop()
-        await get_speaker_collection_service().stop()
+        with get_session_local()() as db:
+            users = db.query(User).all()
+        for user in users:
+            workspace_token = activate_workspace(user.id, user.is_admin)
+            try:
+                await get_keyword_monitor_service().stop()
+                await get_automation_rule_service().stop()
+                await get_bulk_group_membership_service().stop()
+                await get_speaker_collection_service().stop()
+            finally:
+                reset_workspace(workspace_token)
     except Exception:
         pass

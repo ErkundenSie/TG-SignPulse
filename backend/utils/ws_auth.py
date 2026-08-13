@@ -6,6 +6,8 @@ from fastapi import WebSocket, status
 from sqlalchemy.orm import Session
 
 from backend.core.auth import verify_token
+from backend.core.workspace import activate_workspace
+from backend.models.user import User
 
 _TOKEN_PROTOCOL = "tg-flowpulse-token"
 
@@ -24,19 +26,20 @@ async def authenticate_websocket(
     websocket: WebSocket,
     db: Session,
     query_token: Optional[str],
-) -> bool:
+) -> Optional[User]:
     token = extract_ws_token(websocket, query_token)
     if not token:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return False
+        return None
     try:
         user = verify_token(token, db)
     except Exception:
         user = None
     if not user:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return False
-    return True
+        return None
+    activate_workspace(user.id, user.is_admin)
+    return user
 
 
 def ws_auth_subprotocol(websocket: WebSocket) -> Optional[str]:
@@ -49,8 +52,9 @@ async def accept_authenticated_websocket(
     websocket: WebSocket,
     db: Session,
     query_token: Optional[str],
-) -> bool:
-    if not await authenticate_websocket(websocket, db, query_token):
-        return False
+) -> Optional[User]:
+    user = await authenticate_websocket(websocket, db, query_token)
+    if user is None:
+        return None
     await websocket.accept(subprotocol=ws_auth_subprotocol(websocket))
-    return True
+    return user

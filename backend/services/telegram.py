@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from backend.core.config import get_settings
+from backend.core.workspace import get_workspace_key
 from backend.utils.account_locks import get_account_lock
 from backend.utils.names import ensure_child_path, validate_name_segment
 from backend.utils.proxy import build_proxy_dict
@@ -53,6 +54,10 @@ class TelegramService:
 
     def _validate_account_name(self, account_name: str) -> str:
         return validate_name_segment(account_name, "account_name")
+
+    @staticmethod
+    def _login_store_key(value: str) -> str:
+        return f"{get_workspace_key()}:{value}"
 
     def _session_base_path(self, account_name: str):
         return ensure_child_path(
@@ -94,14 +99,19 @@ class TelegramService:
         accounts = []
 
         pending_accounts = set()
+        workspace_key = get_workspace_key()
         for data in _login_sessions.values():
             name = data.get("account_name")
-            if name:
+            if name and data.get("workspace_key") == workspace_key:
                 pending_accounts.add(name)
         for data in _qr_login_sessions.values():
             name = data.get("account_name")
             status = data.get("status")
-            if name and status != "success":
+            if (
+                name
+                and status != "success"
+                and data.get("workspace_key") == workspace_key
+            ):
                 pending_accounts.add(name)
 
         # 扫描 session 目录
@@ -691,10 +701,14 @@ class TelegramService:
         global_semaphore = get_global_semaphore()
 
         # 1. 清理全局 _login_sessions 中可能存在的残留连接
-        # _login_sessions key 格式: f"{account_name}_{phone_number}"
+        # _login_sessions key 格式: f"{workspace_key}:{account_name}_{phone_number}"
+        workspace_key = get_workspace_key()
         keys_to_remove = []
         for key, value in _login_sessions.items():
-            if key.startswith(f"{account_name}_"):
+            if (
+                value.get("workspace_key") == workspace_key
+                and value.get("account_name") == account_name
+            ):
                 old_client = value.get("client")
                 old_lock = value.get("lock")
                 if old_lock and old_lock.locked():
@@ -805,13 +819,14 @@ class TelegramService:
 
                 sent_code = await client.send_code(phone_number)
 
-            session_key = f"{account_name}_{phone_number}"
+            session_key = self._login_store_key(f"{account_name}_{phone_number}")
             _login_sessions[session_key] = {
                 "client": client,
                 "phone_code_hash": sent_code.phone_code_hash,
                 "phone_number": phone_number,
                 "lock": account_lock,
                 "account_name": account_name,
+                "workspace_key": workspace_key,
             }
 
             # 保持连接，避免 session 变化导致验证码失效 (PhoneCodeExpired)
@@ -895,7 +910,7 @@ class TelegramService:
 
         account_name = self._validate_account_name(account_name)
         # 尝试从全局字典获取之前的 client
-        session_key = f"{account_name}_{phone_number}"
+        session_key = self._login_store_key(f"{account_name}_{phone_number}")
         session_data = _login_sessions.get(session_key)
 
         if not session_data:
@@ -1260,9 +1275,13 @@ class TelegramService:
         session_mode = get_session_mode()
         global_semaphore = get_global_semaphore()
 
-        # 清理同账号残留的扫码会话
+        # 清理当前工作区同账号残留的扫码会话
+        workspace_key = get_workspace_key()
         for key, value in list(_qr_login_sessions.items()):
-            if value.get("account_name") == account_name:
+            if (
+                value.get("workspace_key") == workspace_key
+                and value.get("account_name") == account_name
+            ):
                 await self._cleanup_qr_login(key)
 
         await account_lock.acquire()
@@ -1363,6 +1382,7 @@ class TelegramService:
 
             session_data = {
                 "account_name": account_name,
+                "workspace_key": workspace_key,
                 "proxy": proxy,
                 "client": client,
                 "token": token_bytes,
@@ -1451,7 +1471,7 @@ class TelegramService:
         from pyrogram.methods.messages.inline_session import get_session
 
         data = _qr_login_sessions.get(login_id)
-        if not data:
+        if not data or data.get("workspace_key") != get_workspace_key():
             return {
                 "status": "expired",
                 "message": "二维码已过期或不存在",
@@ -1797,7 +1817,7 @@ class TelegramService:
             raise ValueError("2FA 密码不能为空")
 
         data = _qr_login_sessions.get(login_id)
-        if not data:
+        if not data or data.get("workspace_key") != get_workspace_key():
             raise ValueError("二维码已过期或不存在")
 
         if time.time() >= data.get("expires_ts", 0):
@@ -2194,7 +2214,7 @@ class TelegramService:
 
     async def cancel_qr_login(self, login_id: str) -> bool:
         data = _qr_login_sessions.get(login_id)
-        if not data:
+        if not data or data.get("workspace_key") != get_workspace_key():
             return False
         self._log_qr_state(login_id, "cancelled", data)
         await self._cleanup_qr_login(login_id)
@@ -2255,11 +2275,11 @@ class TelegramService:
 
 
 # 创建全局实例
-_telegram_service: Optional[TelegramService] = None
+_telegram_services: dict[str, TelegramService] = {}
 
 
 def get_telegram_service() -> TelegramService:
-    global _telegram_service
-    if _telegram_service is None:
-        _telegram_service = TelegramService()
-    return _telegram_service
+    key = get_workspace_key()
+    if key not in _telegram_services:
+        _telegram_services[key] = TelegramService()
+    return _telegram_services[key]

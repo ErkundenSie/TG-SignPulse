@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Integer, String, Text
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from backend.core.database import Base
@@ -12,6 +12,7 @@ class Account(Base):
     __tablename__ = "accounts"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     account_name = Column(String(100), unique=True, nullable=False, index=True)
     api_id = Column(String(64), nullable=False)
     api_hash = Column(String(128), nullable=False)
@@ -23,4 +24,5 @@ class Account(Base):
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
 
+    user = relationship("User")
     tasks = relationship("Task", back_populates="account", cascade="all,delete")

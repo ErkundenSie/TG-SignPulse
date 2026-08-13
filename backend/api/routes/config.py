@@ -417,6 +417,8 @@ class GlobalSettingsResponse(BaseModel):
 def get_global_settings(current_user: User = Depends(get_current_user)):
     try:
         settings = dict(get_config_service().get_global_settings())
+        if not current_user.is_admin:
+            settings["data_dir"] = None
         token = settings.pop("telegram_bot_token", None)
         settings["telegram_bot_token_masked"] = _mask_secret(token)
         return GlobalSettingsResponse(**settings)
@@ -447,6 +449,11 @@ async def save_global_settings(
             request, "model_fields_set", getattr(request, "__fields_set__", set())
         )
         if "data_dir" in fields_set:
+            if not current_user.is_admin:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only the administrator can change the application data directory",
+                )
             settings["data_dir"] = request.data_dir
         if "telegram_bot_token" in fields_set:
             settings["telegram_bot_token"] = request.telegram_bot_token

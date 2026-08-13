@@ -13,6 +13,7 @@ from urllib.parse import urlsplit, urlunsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from backend.core.config import get_settings
+from backend.core.workspace import get_workspace_context, get_workspace_key
 from backend.utils.names import ensure_child_path, validate_name_segment
 from backend.utils.outbound_url import validate_outbound_http_url
 from backend.utils.storage import (
@@ -736,7 +737,9 @@ class ConfigService:
         """
         config_file = self._get_global_settings_file()
 
-        override_data_dir = load_data_dir_override()
+        workspace = get_workspace_context()
+        is_admin_workspace = workspace is None or workspace.is_admin
+        override_data_dir = load_data_dir_override() if is_admin_workspace else None
         default_settings = {
             "sign_interval": None,  # None 表示使用随机 1-120 秒
             "log_retention_days": 7,
@@ -782,7 +785,12 @@ class ConfigService:
         merged.update(settings)
         merged["timezone"] = validate_timezone(merged.get("timezone"))
 
+        workspace = get_workspace_context()
+        is_admin_workspace = workspace is None or workspace.is_admin
         data_dir_value = merged.get("data_dir")
+        if not is_admin_workspace:
+            merged["data_dir"] = None
+            data_dir_value = None
         if isinstance(data_dir_value, str):
             data_dir_value = data_dir_value.strip()
         if data_dir_value:
@@ -792,7 +800,7 @@ class ConfigService:
                 raise ValueError(f"数据路径不可写: {resolved}")
             save_data_dir_override(resolved)
             merged["data_dir"] = str(resolved)
-        elif data_dir_value is None or data_dir_value == "":
+        elif is_admin_workspace and (data_dir_value is None or data_dir_value == ""):
             clear_data_dir_override()
             merged["data_dir"] = None
 
@@ -889,11 +897,11 @@ class ConfigService:
 
 
 # 创建全局实例
-_config_service: Optional[ConfigService] = None
+_config_services: dict[str, ConfigService] = {}
 
 
 def get_config_service() -> ConfigService:
-    global _config_service
-    if _config_service is None:
-        _config_service = ConfigService()
-    return _config_service
+    key = get_workspace_key()
+    if key not in _config_services:
+        _config_services[key] = ConfigService()
+    return _config_services[key]

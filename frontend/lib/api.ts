@@ -1,4 +1,4 @@
-import { Account, Task, TaskLog, TokenResponse } from "./types";
+import { Account, CurrentUser, Task, TaskLog, TokenResponse } from "./types";
 import { LEGACY_TOKEN_KEY, TOKEN_KEY } from "./auth";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "/api";
@@ -151,7 +151,39 @@ export const login = (payload: {
     body: JSON.stringify(payload),
   });
 
-export const getMe = (token: string) => request("/auth/me", {}, token);
+export const getMe = (token: string) =>
+  request<CurrentUser>("/auth/me", {}, token);
+
+export const listManagedUsers = (token: string) =>
+  request<CurrentUser[]>("/admin/users", {}, token);
+
+export const createManagedUser = (
+  token: string,
+  payload: { username: string; password: string },
+) =>
+  request<CurrentUser>(
+    "/admin/users",
+    { method: "POST", body: JSON.stringify(payload) },
+    token,
+  );
+
+export const updateManagedUser = (
+  token: string,
+  userId: number,
+  payload: { username?: string; password?: string; is_active?: boolean },
+) =>
+  request<CurrentUser>(
+    `/admin/users/${pathSegment(userId)}`,
+    { method: "PATCH", body: JSON.stringify(payload) },
+    token,
+  );
+
+export const resetManagedUserTOTP = (token: string, userId: number) =>
+  request<CurrentUser>(
+    `/admin/users/${pathSegment(userId)}/reset-totp`,
+    { method: "POST" },
+    token,
+  );
 
 export const resetTOTP = (
   token: string,

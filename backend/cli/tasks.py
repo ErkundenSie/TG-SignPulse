@@ -14,13 +14,18 @@ def _cli_command() -> str:
     return "tg-flowpulse" if shutil.which("tg-flowpulse") else "tg-signer"
 
 
-def _base_args(account_name: str) -> list[str]:
+def _base_args(
+    account_name: str,
+    *,
+    workdir: str | None = None,
+    session_dir: str | None = None,
+) -> list[str]:
     return [
         _cli_command(),
         "--workdir",
-        str(settings.resolve_workdir()),
+        workdir or str(settings.resolve_workdir()),
         "--session_dir",
-        str(settings.resolve_session_dir()),
+        session_dir or str(settings.resolve_session_dir()),
         "--account",
         account_name,
     ]
@@ -31,12 +36,18 @@ async def async_run_task_cli(
     task_name: str,
     num_of_dialogs: int = 50,
     callback: Optional[Callable[[str], None]] = None,
+    workdir: str | None = None,
+    session_dir: str | None = None,
 ) -> tuple[int, str, str]:
     """
     Asynchronously run a TG-FlowPulse sign task using CLI.
     Returns (returncode, stdout, stderr)
     """
-    args = _base_args(account_name) + [
+    args = _base_args(
+        account_name,
+        workdir=workdir,
+        session_dir=session_dir,
+    ) + [
         "run",
         task_name,
         "--num-of-dialogs",
@@ -49,7 +60,9 @@ async def async_run_task_cli(
         try:
             from backend.services.config import get_config_service
 
-            global_proxy = get_config_service().get_global_settings().get("global_proxy")
+            global_proxy = (
+                get_config_service().get_global_settings().get("global_proxy")
+            )
             if isinstance(global_proxy, str) and global_proxy.strip():
                 env["TG_PROXY"] = global_proxy.strip()
         except Exception:

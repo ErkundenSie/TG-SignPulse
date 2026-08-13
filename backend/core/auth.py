@@ -15,6 +15,7 @@ from backend.core.config import get_settings
 from backend.core.database import get_db
 from backend.core.security import verify_password
 from backend.models.user import User
+from backend.core.workspace import activate_workspace, reset_workspace
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
@@ -63,7 +64,7 @@ class AuthService:
         self, db: Session, username: str, password: str
     ) -> Optional[User]:
         user = db.query(User).filter(User.username == username).first()
-        if not user:
+        if not user or not user.is_active:
             return None
         if not verify_password(password, user.password_hash):
             return None
@@ -77,7 +78,8 @@ class AuthService:
                 return None
         except JWTError:
             return None
-        return db.query(User).filter(User.username == username).first()
+        user = db.query(User).filter(User.username == username).first()
+        return user if user and user.is_active else None
 
 
 auth_service = AuthService(settings.secret_key, settings.access_token_expire_hours)
@@ -113,7 +115,11 @@ def get_current_user(
             raise credentials_exception
     except HTTPException:
         raise credentials_exception
-    return user
+    workspace_token = activate_workspace(user.id, user.is_admin)
+    try:
+        yield user
+    finally:
+        reset_workspace(workspace_token)
 
 
 # OAuth2 scheme that doesn't auto-error on missing token
@@ -129,9 +135,25 @@ def get_current_user_optional(
     """获取当前用户，如果无法认证则返回 None（不抛出异常）"""
     if not token:
         return None
-    return verify_token(token, db)
+    user = verify_token(token, db)
+    if user is None:
+        return None
+    workspace_token = activate_workspace(user.id, user.is_admin)
+    try:
+        yield user
+    finally:
+        reset_workspace(workspace_token)
 
 
 def verify_token(token: str, db: Session) -> Optional[User]:
     """验证 Token 并返回用户对象"""
     return auth_service.verify_token(token, db)
+
+
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator access required",
+        )
+    return current_user

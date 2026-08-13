@@ -13,6 +13,7 @@ from typing import Any, Optional
 from urllib.parse import urlparse
 
 from backend.core.config import get_settings
+from backend.core.workspace import get_workspace_key
 from backend.services.chat_migration import ChatMigrationService
 
 logger = logging.getLogger("backend.speaker_collection")
@@ -552,11 +553,11 @@ class SpeakerCollectionService(ChatMigrationService):
             await asyncio.gather(*workers, return_exceptions=True)
 
 
-_service: Optional[SpeakerCollectionService] = None
+_services: dict[str, SpeakerCollectionService] = {}
 
 
 def get_speaker_collection_service() -> SpeakerCollectionService:
-    global _service
-    if _service is None:
-        _service = SpeakerCollectionService()
-    return _service
+    key = get_workspace_key()
+    if key not in _services:
+        _services[key] = SpeakerCollectionService()
+    return _services[key]

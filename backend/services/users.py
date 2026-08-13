@@ -19,8 +19,14 @@ def ensure_admin(db: Session, username: str = "admin", password: str = None):
     防止用户修改用户名后，系统又自动创建一个默认的 admin 账号。
     """
     # 检查是否已有任何用户存在
-    first_user = db.query(User).first()
+    admin = db.query(User).filter(User.is_admin.is_(True)).first()
+    if admin:
+        return admin
+
+    first_user = db.query(User).order_by(User.id.asc()).first()
     if first_user:
+        first_user.is_admin = True
+        db.commit()
         return first_user
 
     if not password:
@@ -45,7 +51,12 @@ def ensure_admin(db: Session, username: str = "admin", password: str = None):
             )
 
     # 如果没有任何用户，则创建默认管理员
-    new_user = User(username=username, password_hash=hash_password(password))
+    new_user = User(
+        username=username,
+        password_hash=hash_password(password),
+        is_admin=True,
+        is_active=True,
+    )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)

@@ -28,8 +28,8 @@ def is_task_running(task_id: int) -> bool:
     return _active_tasks.get(task_id, False)
 
 
-def list_tasks(db: Session) -> List[Task]:
-    return db.query(Task).order_by(Task.id.desc()).all()
+def list_tasks(db: Session, user_id: int) -> List[Task]:
+    return db.query(Task).filter(Task.user_id == user_id).order_by(Task.id.desc()).all()
 
 
 def cleanup_old_logs(db: Session, days: int = 3) -> int:
@@ -58,8 +58,8 @@ def cleanup_old_logs(db: Session, days: int = 3) -> int:
     return count
 
 
-def get_task(db: Session, task_id: int) -> Optional[Task]:
-    return db.query(Task).filter(Task.id == task_id).first()
+def get_task(db: Session, task_id: int, user_id: int) -> Optional[Task]:
+    return db.query(Task).filter(Task.id == task_id, Task.user_id == user_id).first()
 
 
 def create_task(
@@ -68,8 +68,15 @@ def create_task(
     cron: str,
     enabled: bool,
     account_id: int,
+    user_id: int,
 ) -> Task:
-    task = Task(name=name, cron=cron, enabled=enabled, account_id=account_id)
+    task = Task(
+        name=name,
+        cron=cron,
+        enabled=enabled,
+        account_id=account_id,
+        user_id=user_id,
+    )
     db.add(task)
     db.commit()
     db.refresh(task)
@@ -129,6 +136,7 @@ async def run_task_once(db: Session, task: Task) -> TaskLog:
 
     task_log = TaskLog(
         task_id=task.id,
+        user_id=task.user_id,
         status="running",
         log_path=str(log_file),
         started_at=datetime.utcnow(),
@@ -148,6 +156,8 @@ async def run_task_once(db: Session, task: Task) -> TaskLog:
             account_name=account.account_name,
             task_name=task.name,
             callback=log_callback,
+            workdir=str(settings.resolve_workdir()),
+            session_dir=str(settings.resolve_session_dir()),
         )
 
         full_output = (stdout or "") + "\n" + (stderr or "")
@@ -191,10 +201,12 @@ async def run_task_once(db: Session, task: Task) -> TaskLog:
     return task_log
 
 
-def list_task_logs(db: Session, task_id: int, limit: int = 50) -> List[TaskLog]:
+def list_task_logs(
+    db: Session, task_id: int, user_id: int, limit: int = 50
+) -> List[TaskLog]:
     return (
         db.query(TaskLog)
-        .filter(TaskLog.task_id == task_id)
+        .filter(TaskLog.task_id == task_id, TaskLog.user_id == user_id)
         .order_by(TaskLog.id.desc())
         .limit(limit)
         .all()

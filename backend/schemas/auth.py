@@ -20,6 +20,8 @@ class TokenResponse(BaseModel):
 class UserOut(BaseModel):
     id: int
     username: str
+    is_admin: bool
+    is_active: bool
     created_at: datetime
 
     class Config:

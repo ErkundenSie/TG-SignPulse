@@ -15,6 +15,7 @@ from pyrogram import filters
 from pyrogram.handlers import EditedMessageHandler, MessageHandler
 from pyrogram.types import Message
 
+from backend.core.workspace import get_workspace_context, get_workspace_key
 from backend.services.chat_migration import ChatMigrationService
 from backend.utils.account_locks import get_account_lock
 from backend.utils.names import validate_name_segment
@@ -824,8 +825,11 @@ class AutomationRuleService(ChatMigrationService):
             next_at = datetime.now(timezone.utc) + timedelta(seconds=total_seconds)
             from backend import scheduler as scheduler_module
 
+            workspace = get_workspace_context()
+            if workspace is None:
+                raise ValueError("工作区上下文不可用")
             scheduler_module.scheduler.modify_job(
-                f"automation-{rule['id']}-{timer_index}",
+                f"automation-{workspace.user_id}-{rule['id']}-{timer_index}",
                 next_run_time=next_at,
             )
             state = self._load_state(rule["id"])
@@ -1129,10 +1133,14 @@ class AutomationRuleService(ChatMigrationService):
         active_scheduler = scheduler_module.scheduler
         if active_scheduler is None:
             return
+        workspace = get_workspace_context()
+        if workspace is None:
+            return
+        user_id = workspace.user_id
         existing = {
             job.id
             for job in active_scheduler.get_jobs()
-            if job.id.startswith("automation-")
+            if job.id.startswith(f"automation-{user_id}-")
         }
         desired: set[str] = set()
         for rule in self.list_rules():
@@ -1141,7 +1149,7 @@ class AutomationRuleService(ChatMigrationService):
             for index, trigger in enumerate(rule.get("triggers") or []):
                 if trigger.get("type") != "timer":
                     continue
-                job_id = f"automation-{rule['id']}-{index}"
+                job_id = f"automation-{user_id}-{rule['id']}-{index}"
                 desired.add(job_id)
                 params = trigger.get("params") or {}
                 cron = str(params.get("cron") or "").strip()
@@ -1174,7 +1182,7 @@ class AutomationRuleService(ChatMigrationService):
                     _job_run_automation_rule,
                     trigger=schedule_trigger,
                     id=job_id,
-                    args=[rule["id"], index],
+                    args=[user_id, rule["id"], index],
                     replace_existing=True,
                     **schedule_options,
                 )
@@ -1190,19 +1198,21 @@ class AutomationRuleService(ChatMigrationService):
             from backend import scheduler as scheduler_module
 
             if scheduler_module.scheduler is not None:
-                prefix = f"automation-{rule_id}-"
-                for job in scheduler_module.scheduler.get_jobs():
-                    if job.id.startswith(prefix):
-                        scheduled.append(
-                            {
-                                "id": job.id,
-                                "next_run_time": (
-                                    job.next_run_time.isoformat()
-                                    if job.next_run_time
-                                    else None
-                                ),
-                            }
-                        )
+                workspace = get_workspace_context()
+                if workspace is not None:
+                    prefix = f"automation-{workspace.user_id}-{rule_id}-"
+                    for job in scheduler_module.scheduler.get_jobs():
+                        if job.id.startswith(prefix):
+                            scheduled.append(
+                                {
+                                    "id": job.id,
+                                    "next_run_time": (
+                                        job.next_run_time.isoformat()
+                                        if job.next_run_time
+                                        else None
+                                    ),
+                                }
+                            )
         except Exception:
             pass
         listener_active = any(
@@ -1221,11 +1231,11 @@ class AutomationRuleService(ChatMigrationService):
         }
 
 
-_automation_rule_service: Optional[AutomationRuleService] = None
+_automation_rule_services: dict[str, AutomationRuleService] = {}
 
 
 def get_automation_rule_service() -> AutomationRuleService:
-    global _automation_rule_service
-    if _automation_rule_service is None:
-        _automation_rule_service = AutomationRuleService()
-    return _automation_rule_service
+    key = get_workspace_key()
+    if key not in _automation_rule_services:
+        _automation_rule_services[key] = AutomationRuleService()
+    return _automation_rule_services[key]

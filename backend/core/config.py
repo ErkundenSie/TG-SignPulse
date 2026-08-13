@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from backend.utils.storage import get_initial_data_dir, get_writable_base_dir
+from backend.core.workspace import resolve_workspace_dir
 
 try:
     from pydantic.v1 import BaseSettings
@@ -85,13 +86,16 @@ class Settings(BaseSettings):
         return self.db_path or self.resolve_base_dir() / "db.sqlite"
 
     def resolve_workdir(self) -> Path:
-        return self.signer_workdir or self.resolve_base_dir() / ".signer"
+        base = self.signer_workdir or self.resolve_base_dir() / ".signer"
+        return resolve_workspace_dir(base)
 
     def resolve_session_dir(self) -> Path:
-        return self.session_dir or self.resolve_base_dir() / "sessions"
+        base = self.session_dir or self.resolve_base_dir() / "sessions"
+        return resolve_workspace_dir(base)
 
     def resolve_logs_dir(self) -> Path:
-        return self.logs_dir or self.resolve_base_dir() / "logs"
+        base = self.logs_dir or self.resolve_base_dir() / "logs"
+        return resolve_workspace_dir(base)
 
     def resolve_base_dir(self) -> Path:
         if self.data_dir and str(self.data_dir) != "/data":
