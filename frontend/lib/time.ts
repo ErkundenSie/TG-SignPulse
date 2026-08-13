@@ -39,6 +39,23 @@ export const formatConfiguredDateTime = (
   }
 };
 
+export const formatConfiguredLegacyLocalDateTime = (
+  value: string | null | undefined,
+  timezone: string,
+  locale = "zh-CN",
+  options: Intl.DateTimeFormatOptions = {},
+) => {
+  if (!value) return "--";
+  if (TIMESTAMP_WITH_ZONE.test(value)) {
+    return formatConfiguredDateTime(value, timezone, locale, options);
+  }
+  const normalized = value.replace(" ", "T").slice(0, 16);
+  const utcValue = configuredDateTimeLocalToIso(normalized, timezone);
+  return utcValue
+    ? formatConfiguredDateTime(utcValue, timezone, locale, options)
+    : value;
+};
+
 export const toConfiguredDateTimeLocal = (
   value: string | null | undefined,
   timezone: string,

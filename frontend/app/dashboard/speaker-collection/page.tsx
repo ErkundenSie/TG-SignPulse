@@ -42,6 +42,7 @@ import {
 import {
   configuredDateTimeLocalToIso,
   formatConfiguredDateTime,
+  formatConfiguredLegacyLocalDateTime,
   toConfiguredDateTimeLocal,
   useConfiguredTimezone,
 } from "../../../lib/time";
@@ -909,7 +910,7 @@ export default function SpeakerCollectionPage() {
                           {r.message_count}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2.5 text-main/55">
-                          {formatConfiguredDateTime(
+                          {formatConfiguredLegacyLocalDateTime(
                             r.last_message_at,
                             timezone,
                           )}

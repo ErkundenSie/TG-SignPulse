@@ -416,14 +416,15 @@ class SpeakerCollectionService(ChatMigrationService):
                     or getattr(user, "username", "")
                     or str(user.id)
                 )
-                first_at = existing.get("first_message_at") or message_date.isoformat()
-                last_at = existing.get("last_message_at") or message_date.isoformat()
+                message_timestamp = message_date.astimezone(timezone.utc).isoformat()
+                first_at = existing.get("first_message_at") or message_timestamp
+                last_at = existing.get("last_message_at") or message_timestamp
                 first_message_id = existing.get("first_message_id") or message_id
-                if message_date.isoformat() < first_at:
-                    first_at = message_date.isoformat()
+                if message_timestamp < first_at:
+                    first_at = message_timestamp
                     first_message_id = message_id
-                if message_date.isoformat() > last_at:
-                    last_at = message_date.isoformat()
+                if message_timestamp > last_at:
+                    last_at = message_timestamp
                 record = {
                     **existing,
                     "id": key,
@@ -448,7 +449,7 @@ class SpeakerCollectionService(ChatMigrationService):
                     "first_message_id": first_message_id,
                     "last_message_id": (
                         message_id
-                        if message_date.isoformat() >= last_at
+                        if message_timestamp >= last_at
                         else existing.get("last_message_id")
                     ),
                     "message_count": int(existing.get("message_count") or 0)
