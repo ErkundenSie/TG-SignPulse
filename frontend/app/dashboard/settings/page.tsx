@@ -1546,8 +1546,7 @@ function SettingsPageContent() {
                       </div>
                     </div>
                     <div className="settings-callout !border-amber-500/30 text-[11px] text-amber-700 dark:text-amber-200/80">
-                      完整备份包含可直接登录 Telegram
-                      账号的敏感数据，请像密码一样妥善保管；恢复会覆盖当前用户的工作区数据，但不会修改平台用户名、密码或
+                      恢复会覆盖当前用户的工作区数据，但不会修改平台用户名、密码或
                       2FA。
                     </div>
                     <div className="settings-actions">

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle,
@@ -378,98 +379,100 @@ export default function AdminUsersPage() {
               )}
             </section>
 
-            {createDialogOpen && (
-              <div
-                className="modal-overlay active"
-                onMouseDown={() => !saving && setCreateDialogOpen(false)}
-              >
-                <form
-                  className="glass-panel modal-content !max-w-md !p-0 overflow-hidden"
-                  onSubmit={createUser}
-                  onMouseDown={(event) => event.stopPropagation()}
+            {createDialogOpen &&
+              createPortal(
+                <div
+                  className="modal-overlay active admin-user-modal-overlay"
+                  onMouseDown={() => !saving && setCreateDialogOpen(false)}
                 >
-                  <div className="modal-header !mb-0 border-b border-white/5 px-6 py-4">
-                    <div className="settings-panel-title">
-                      <div className="settings-panel-icon bg-emerald-500/10 text-emerald-400">
-                        <UserPlus size={18} weight="bold" />
-                      </div>
-                      <div>
-                        <div className="modal-title">创建普通用户</div>
-                        <div className="mt-1 text-xs text-main/45">
-                          用户数据与 Telegram 会话将独立存放。
+                  <form
+                    className="glass-panel modal-content !max-w-md !p-0 overflow-hidden"
+                    onSubmit={createUser}
+                    onMouseDown={(event) => event.stopPropagation()}
+                  >
+                    <div className="modal-header !mb-0 border-b border-white/5 px-6 py-4">
+                      <div className="settings-panel-title">
+                        <div className="settings-panel-icon bg-emerald-500/10 text-emerald-400">
+                          <UserPlus size={18} weight="bold" />
+                        </div>
+                        <div>
+                          <div className="modal-title">创建普通用户</div>
+                          <div className="mt-1 text-xs text-main/45">
+                            用户数据与 Telegram 会话将独立存放。
+                          </div>
                         </div>
                       </div>
+                      <button
+                        className="action-btn"
+                        type="button"
+                        disabled={saving}
+                        onClick={() => setCreateDialogOpen(false)}
+                        aria-label="关闭"
+                      >
+                        <X weight="bold" />
+                      </button>
                     </div>
-                    <button
-                      className="action-btn"
-                      type="button"
-                      disabled={saving}
-                      onClick={() => setCreateDialogOpen(false)}
-                      aria-label="关闭"
-                    >
-                      <X weight="bold" />
-                    </button>
-                  </div>
-                  <div className="space-y-4 px-6 py-5">
-                    <div>
-                      <label className="text-[12px] mb-1.5">用户名</label>
-                      <input
-                        className="!py-2.5 !px-4"
-                        value={form.username}
-                        minLength={3}
-                        maxLength={50}
-                        required
-                        autoFocus
-                        onChange={(event) =>
-                          setForm((value) => ({
-                            ...value,
-                            username: event.target.value,
-                          }))
-                        }
-                      />
+                    <div className="space-y-4 px-6 py-5">
+                      <div>
+                        <label className="text-[12px] mb-1.5">用户名</label>
+                        <input
+                          className="!py-2.5 !px-4"
+                          value={form.username}
+                          minLength={3}
+                          maxLength={50}
+                          required
+                          autoFocus
+                          onChange={(event) =>
+                            setForm((value) => ({
+                              ...value,
+                              username: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[12px] mb-1.5">初始密码</label>
+                        <input
+                          className="!py-2.5 !px-4"
+                          type="password"
+                          value={form.password}
+                          minLength={8}
+                          required
+                          onChange={(event) =>
+                            setForm((value) => ({
+                              ...value,
+                              password: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-[12px] mb-1.5">初始密码</label>
-                      <input
-                        className="!py-2.5 !px-4"
-                        type="password"
-                        value={form.password}
-                        minLength={8}
-                        required
-                        onChange={(event) =>
-                          setForm((value) => ({
-                            ...value,
-                            password: event.target.value,
-                          }))
-                        }
-                      />
+                    <div className="flex justify-end gap-2 border-t border-white/5 px-6 py-4">
+                      <button
+                        className="btn-secondary"
+                        type="button"
+                        disabled={saving}
+                        onClick={() => setCreateDialogOpen(false)}
+                      >
+                        取消
+                      </button>
+                      <button
+                        className="btn-gradient"
+                        disabled={saving}
+                        type="submit"
+                      >
+                        {saving ? (
+                          <Spinner className="animate-spin" />
+                        ) : (
+                          <Plus weight="bold" />
+                        )}{" "}
+                        创建用户
+                      </button>
                     </div>
-                  </div>
-                  <div className="flex justify-end gap-2 border-t border-white/5 px-6 py-4">
-                    <button
-                      className="btn-secondary"
-                      type="button"
-                      disabled={saving}
-                      onClick={() => setCreateDialogOpen(false)}
-                    >
-                      取消
-                    </button>
-                    <button
-                      className="btn-gradient"
-                      disabled={saving}
-                      type="submit"
-                    >
-                      {saving ? (
-                        <Spinner className="animate-spin" />
-                      ) : (
-                        <Plus weight="bold" />
-                      )}{" "}
-                      创建用户
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
+                  </form>
+                </div>,
+                document.body,
+              )}
           </section>
         </div>
       </main>
