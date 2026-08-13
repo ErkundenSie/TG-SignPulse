@@ -1560,7 +1560,7 @@ function SettingsPageContent() {
                         ) : (
                           <DownloadSimple weight="bold" />
                         )}
-                        下载完整 ZIP 备份
+                        下载
                       </button>
                       <label
                         className={`btn-gradient cursor-pointer ${fullBackupLoading ? "pointer-events-none opacity-50" : ""}`}
@@ -1570,7 +1570,7 @@ function SettingsPageContent() {
                         ) : (
                           <ArrowUDownLeft weight="bold" />
                         )}
-                        恢复完整 ZIP 备份
+                        恢复
                         <input
                           type="file"
                           accept=".zip,application/zip"
@@ -1617,7 +1617,7 @@ function SettingsPageContent() {
                           ) : (
                             <DownloadSimple weight="bold" />
                           )}
-                          下载完整系统备份
+                          下载
                         </button>
                         <label
                           className={`btn-gradient cursor-pointer ${systemBackupLoading ? "pointer-events-none opacity-50" : ""}`}
@@ -1627,7 +1627,7 @@ function SettingsPageContent() {
                           ) : (
                             <ArrowUDownLeft weight="bold" />
                           )}
-                          恢复完整系统备份
+                          恢复
                           <input
                             type="file"
                             accept=".zip,application/zip"
@@ -1676,7 +1676,7 @@ function SettingsPageContent() {
                           ) : (
                             <FloppyDisk weight="bold" />
                           )}
-                          {t("download_json")}
+                          下载
                         </button>
                       </div>
                     </div>
