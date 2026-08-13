@@ -1528,7 +1528,7 @@ function SettingsPageContent() {
                 <div
                   className={`grid grid-cols-1 gap-4 ${currentUser?.is_admin ? "xl:grid-cols-2" : ""}`}
                 >
-                  <div className="settings-panel">
+                  <div className="settings-panel flex h-full flex-col">
                     <div className="settings-panel-header">
                       <div className="settings-panel-title">
                         <div className="settings-panel-icon bg-rose-500/10 text-rose-400">
@@ -1549,7 +1549,7 @@ function SettingsPageContent() {
                       恢复会覆盖当前用户的工作区数据，但不会修改平台用户名、密码或
                       2FA。
                     </div>
-                    <div className="settings-actions">
+                    <div className="settings-actions !mt-auto">
                       <button
                         onClick={handleFullBackupExport}
                         className="btn-secondary"
@@ -1587,7 +1587,7 @@ function SettingsPageContent() {
                   </div>
 
                   {currentUser?.is_admin && (
-                    <div className="settings-panel">
+                    <div className="settings-panel flex h-full flex-col">
                       <div className="settings-panel-header">
                         <div className="settings-panel-title">
                           <div className="settings-panel-icon bg-violet-500/10 text-violet-400">
@@ -1606,7 +1606,7 @@ function SettingsPageContent() {
                       <div className="settings-callout !border-rose-500/30 text-[11px] text-rose-700 dark:text-rose-200/80">
                         恢复完整系统备份会覆盖当前所有用户和全部系统数据，恢复完成后需重启服务。
                       </div>
-                      <div className="settings-actions">
+                      <div className="settings-actions !mt-auto">
                         <button
                           onClick={handleSystemBackupExport}
                           className="btn-secondary"
