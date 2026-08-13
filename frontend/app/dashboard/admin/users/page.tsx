@@ -386,15 +386,12 @@ export default function AdminUsersPage() {
                   onMouseDown={() => !saving && setCreateDialogOpen(false)}
                 >
                   <form
-                    className="glass-panel modal-content !max-w-md !p-0 overflow-hidden"
+                    className="glass-panel modal-content admin-user-modal-content !max-w-md !p-0 overflow-hidden"
                     onSubmit={createUser}
                     onMouseDown={(event) => event.stopPropagation()}
                   >
                     <div className="modal-header !mb-0 border-b border-white/5 px-6 py-4">
                       <div className="settings-panel-title">
-                        <div className="settings-panel-icon bg-emerald-500/10 text-emerald-400">
-                          <UserPlus size={18} weight="bold" />
-                        </div>
                         <div>
                           <div className="modal-title">创建普通用户</div>
                           <div className="mt-1 text-xs text-main/45">

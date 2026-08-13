@@ -346,6 +346,10 @@
   font-weight: 600;
 }
 
+.sidebar-nav-item-nested.has-description {
+  min-height: 52px;
+}
+
 .sidebar-nav-item-nested .sidebar-nav-icon {
   width: 16px;
   height: 16px;
@@ -1792,6 +1796,14 @@ input[type="radio"] {
   -webkit-backdrop-filter: none;
 }
 
+.admin-user-modal-content {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  margin: 0;
+  transform: translate(-50%, -50%);
+}
+
 .modal-content {
   width: 100%;
   max-width: 460px;
@@ -2999,6 +3011,10 @@ input[type="radio"] {
   padding: 0 18px;
   font-size: 12.5px;
   flex: 0 0 auto;
+}
+
+#settings-view .settings-actions > label.btn-gradient {
+  margin-bottom: 0;
 }
 
 #settings-view .settings-callout {

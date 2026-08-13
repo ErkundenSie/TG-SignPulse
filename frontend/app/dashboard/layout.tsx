@@ -143,6 +143,14 @@ const navGroups = [
             label: { zh: "备份迁移", en: "Backup" },
             icon: DownloadSimple,
           },
+          {
+            href: "/dashboard/admin/users",
+            section: "users",
+            label: { zh: "用户管理", en: "User Management" },
+            description: { zh: "单管理员模式", en: "Single administrator" },
+            icon: UserList,
+            adminOnly: true,
+          },
         ],
       },
     ],
@@ -169,13 +177,14 @@ function DashboardSidebar({
   const text = (label: { zh: string; en: string }) => label[language];
   const settingsSection = searchParams.get("section") || "account";
   const onSettings = pathname.startsWith("/dashboard/settings");
-  const [settingsOpen, setSettingsOpen] = useState(onSettings);
+  const onAdminUsers = pathname.startsWith("/dashboard/admin/users");
+  const [settingsOpen, setSettingsOpen] = useState(onSettings || onAdminUsers);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [identityLoadFailed, setIdentityLoadFailed] = useState(false);
 
   useEffect(() => {
-    if (onSettings) setSettingsOpen(true);
-  }, [onSettings]);
+    if (onSettings || onAdminUsers) setSettingsOpen(true);
+  }, [onAdminUsers, onSettings]);
 
   useEffect(() => {
     const token = getToken();
@@ -188,24 +197,7 @@ function DashboardSidebar({
       .catch(() => setIdentityLoadFailed(true));
   }, []);
 
-  const groups = [
-    ...navGroups,
-    ...(currentUser?.is_admin
-      ? [
-          {
-            label: { zh: "管理", en: "Administration" },
-            items: [
-              {
-                href: "/dashboard/admin/users",
-                label: { zh: "用户管理", en: "User Management" },
-                description: { zh: "单管理员模式", en: "Single administrator" },
-                icon: UserList,
-              },
-            ],
-          },
-        ]
-      : []),
-  ];
+  const groups = navGroups;
 
   return (
     <aside className={`sidebar-shell${mobileOpen ? " is-open" : ""}`}>
@@ -249,7 +241,7 @@ function DashboardSidebar({
                 const children = "children" in item ? item.children : undefined;
 
                 if (children?.length) {
-                  const expanded = settingsOpen || onSettings;
+                  const expanded = settingsOpen || onSettings || onAdminUsers;
                   return (
                     <div
                       key={item.href}
@@ -277,28 +269,42 @@ function DashboardSidebar({
                       </button>
                       {expanded && (
                         <div className="sidebar-subnav">
-                          {children.map((child) => {
-                            const childActive =
-                              onSettings && settingsSection === child.section;
-                            const ChildIcon = child.icon;
-                            return (
-                              <Link
-                                href={child.href}
-                                key={child.href}
-                                className={navItemClass(childActive, true)}
-                                onClick={() => setMobileOpen(false)}
-                              >
-                                <ChildIcon
-                                  weight={childActive ? "fill" : "duotone"}
-                                  size={16}
-                                  className="sidebar-nav-icon"
-                                />
-                                <span className="sidebar-nav-text">
-                                  {text(child.label)}
-                                </span>
-                              </Link>
-                            );
-                          })}
+                          {children
+                            .filter(
+                              (child) =>
+                                !("adminOnly" in child) ||
+                                currentUser?.is_admin,
+                            )
+                            .map((child) => {
+                              const childActive =
+                                child.section === "users"
+                                  ? pathname.startsWith(child.href)
+                                  : onSettings &&
+                                    settingsSection === child.section;
+                              const ChildIcon = child.icon;
+                              return (
+                                <Link
+                                  href={child.href}
+                                  key={child.href}
+                                  className={`${navItemClass(childActive, true)}${"description" in child ? " has-description" : ""}`}
+                                  onClick={() => setMobileOpen(false)}
+                                >
+                                  <ChildIcon
+                                    weight={childActive ? "fill" : "duotone"}
+                                    size={16}
+                                    className="sidebar-nav-icon"
+                                  />
+                                  <span className="sidebar-nav-text">
+                                    <span>{text(child.label)}</span>
+                                    {"description" in child && (
+                                      <span className="sidebar-nav-description">
+                                        {text(child.description)}
+                                      </span>
+                                    )}
+                                  </span>
+                                </Link>
+                              );
+                            })}
                         </div>
                       )}
                     </div>
