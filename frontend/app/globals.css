@@ -327,6 +327,10 @@
   background: rgba(139, 92, 246, 0.12);
 }
 
+.sidebar-nav-item.has-description {
+  min-height: 52px;
+}
+
 .light .sidebar-nav-item.is-active,
 [data-theme="light"] .sidebar-nav-item.is-active {
   color: #6d28d9;
@@ -361,6 +365,19 @@
   flex: 1;
   min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-nav-description {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--text-sub);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+  opacity: 0.72;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

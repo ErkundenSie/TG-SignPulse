@@ -198,6 +198,7 @@ function DashboardSidebar({
               {
                 href: "/dashboard/admin/users",
                 label: { zh: "用户管理", en: "User Management" },
+                description: { zh: "单管理员模式", en: "Single administrator" },
                 icon: UserList,
               },
             ],
@@ -308,7 +309,7 @@ function DashboardSidebar({
                   <Link
                     href={item.href}
                     key={item.href}
-                    className={navItemClass(active)}
+                    className={`${navItemClass(active)}${"description" in item ? " has-description" : ""}`}
                     onClick={() => setMobileOpen(false)}
                   >
                     <Icon
@@ -316,7 +317,14 @@ function DashboardSidebar({
                       size={18}
                       className="sidebar-nav-icon"
                     />
-                    <span className="sidebar-nav-text">{text(item.label)}</span>
+                    <span className="sidebar-nav-text">
+                      <span>{text(item.label)}</span>
+                      {"description" in item && (
+                        <span className="sidebar-nav-description">
+                          {text(item.description)}
+                        </span>
+                      )}
+                    </span>
                   </Link>
                 );
               })}

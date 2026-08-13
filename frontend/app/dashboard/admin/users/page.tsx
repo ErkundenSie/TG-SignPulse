@@ -6,10 +6,8 @@ import {
   CheckCircle,
   Key,
   Plus,
-  ShieldCheck,
   Spinner,
   Trash,
-  UserList,
   UserMinus,
   UserPlus,
   X,
@@ -173,298 +171,308 @@ export default function AdminUsersPage() {
   };
 
   return (
-    <div className="main-content !pt-6">
-      <div className="settings-shell settings-shell-single animate-float-up pb-10">
-        <section className="settings-content min-w-0 space-y-4">
-          <div className="settings-section-header flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="settings-panel-icon bg-violet-500/10 text-violet-400">
-                <UserList size={20} weight="duotone" />
-              </div>
-              <div>
-                <h1 className="text-lg font-bold">用户管理</h1>
-                <p className="text-[12px] text-main/55">
-                  仅管理员可创建、修改和停用普通用户。每个普通用户的数据与
-                  Telegram 会话均独立存放。
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 text-[11px] text-emerald-400">
-                <ShieldCheck size={17} weight="fill" /> 单管理员模式
-              </div>
-              <button
-                className="btn-gradient"
-                type="button"
-                onClick={() => {
-                  setError("");
-                  setMessage("");
-                  setCreateDialogOpen(true);
-                }}
-              >
-                <Plus weight="bold" /> 创建用户
-              </button>
-            </div>
+    <div id="settings-view" className="w-full h-full flex flex-col">
+      <header className="navbar">
+        <div className="nav-brand min-w-0">
+          <div className="navbar-title-block">
+            <h1 className="nav-title">用户管理</h1>
+            <p className="nav-subtitle">集中管理普通用户及其独立工作区</p>
           </div>
+        </div>
+        <div className="top-right-actions shrink-0">
+          <button
+            className="navbar-text-action"
+            type="button"
+            onClick={() => {
+              setError("");
+              setMessage("");
+              setCreateDialogOpen(true);
+            }}
+          >
+            <Plus weight="bold" size={14} /> 创建用户
+          </button>
+        </div>
+      </header>
 
-          {(message || error) && (
-            <div
-              className={`settings-callout ${error ? "!border-rose-500/40 !text-rose-300" : ""}`}
-            >
-              {error || message}
-            </div>
-          )}
+      <main className="main-content settings-main !pt-6">
+        <div className="settings-shell settings-shell-single animate-float-up pb-10">
+          <section className="settings-content min-w-0 space-y-4">
+            {(message || error) && (
+              <div
+                className={`settings-callout ${error ? "!border-rose-500/40 !text-rose-300" : ""}`}
+              >
+                {error || message}
+              </div>
+            )}
 
-          <section className="settings-panel overflow-hidden">
-            <div className="settings-panel-header">
-              <div className="settings-panel-title">
-                <div className="settings-panel-icon bg-blue-500/10 text-blue-400">
-                  <UserList size={18} weight="bold" />
+            <section className="settings-panel !p-0 overflow-hidden">
+              <div className="flex items-center justify-between gap-4 border-b border-white/10 px-5 py-4">
+                <div>
+                  <h2 className="text-base font-bold">普通用户列表</h2>
+                  <p className="mt-0.5 text-[11px] text-main/45">
+                    用户数据与 Telegram 会话均独立存放。
+                  </p>
                 </div>
-                <h2 className="text-base font-bold">普通用户列表</h2>
+                <span className="settings-status-badge is-success">
+                  {users.length} 个用户
+                </span>
               </div>
-              <span className="text-[12px] text-main/50">
-                {users.length} 个用户
-              </span>
-            </div>
-            {loading ? (
-              <div className="py-12 text-center text-main/50">
-                <Spinner className="inline animate-spin mr-2" />
-                加载中
-              </div>
-            ) : users.length === 0 ? (
-              <div className="py-12 text-center text-main/50">
-                还没有普通用户。
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="border-b border-white/10 text-[11px] uppercase tracking-wider text-main/45">
-                    <tr>
-                      <th className="px-4 py-3">用户名</th>
-                      <th className="px-4 py-3">状态</th>
-                      <th className="px-4 py-3">创建时间</th>
-                      <th className="px-4 py-3 text-right">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map((user) => (
-                      <tr className="border-b border-white/5" key={user.id}>
-                        <td className="px-4 py-3 font-medium">
-                          {editingId === user.id ? (
-                            <div className="flex flex-col gap-2 sm:flex-row">
-                              <input
-                                className="!py-1.5 !px-2"
-                                value={editForm.username}
-                                minLength={3}
-                                maxLength={50}
-                                onChange={(event) =>
-                                  setEditForm((value) => ({
-                                    ...value,
-                                    username: event.target.value,
-                                  }))
-                                }
-                              />
-                              <input
-                                className="!py-1.5 !px-2"
-                                type="password"
-                                placeholder="留空不改密码"
-                                value={editForm.password}
-                                minLength={8}
-                                onChange={(event) =>
-                                  setEditForm((value) => ({
-                                    ...value,
-                                    password: event.target.value,
-                                  }))
-                                }
-                              />
-                            </div>
-                          ) : (
-                            user.username
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={
-                              user.is_active
-                                ? "text-emerald-400"
-                                : "text-rose-400"
-                            }
-                          >
-                            {user.is_active ? "已启用" : "已停用"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-main/55">
-                          {new Date(user.created_at).toLocaleString("zh-CN")}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-wrap justify-end gap-2">
+              {loading ? (
+                <div className="py-12 text-center text-main/50">
+                  <Spinner className="inline animate-spin mr-2" />
+                  加载中
+                </div>
+              ) : users.length === 0 ? (
+                <div className="py-12 text-center text-main/50">
+                  还没有普通用户。
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-left text-sm">
+                    <thead className="bg-main/[0.025] text-[11px] uppercase tracking-wider text-main/40">
+                      <tr>
+                        <th className="px-5 py-3 font-semibold">用户</th>
+                        <th className="px-4 py-3 font-semibold">状态</th>
+                        <th className="px-4 py-3 font-semibold">创建时间</th>
+                        <th className="px-5 py-3 text-right font-semibold">
+                          操作
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.map((user) => (
+                        <tr
+                          className="border-b border-white/5 transition-colors last:border-b-0 hover:bg-violet-500/[0.035]"
+                          key={user.id}
+                        >
+                          <td className="px-5 py-3">
                             {editingId === user.id ? (
-                              <>
-                                <button
-                                  className="btn-secondary h-8 px-3 text-xs"
-                                  type="button"
-                                  disabled={saving}
-                                  onClick={() => void saveUser(user.id)}
-                                >
-                                  <CheckCircle size={15} /> 保存
-                                </button>
-                                <button
-                                  className="btn-secondary h-8 px-3 text-xs"
-                                  type="button"
-                                  onClick={() => setEditingId(null)}
-                                >
-                                  取消
-                                </button>
-                              </>
+                              <div className="flex flex-col gap-2 sm:flex-row">
+                                <input
+                                  className="!py-1.5 !px-2"
+                                  value={editForm.username}
+                                  minLength={3}
+                                  maxLength={50}
+                                  onChange={(event) =>
+                                    setEditForm((value) => ({
+                                      ...value,
+                                      username: event.target.value,
+                                    }))
+                                  }
+                                />
+                                <input
+                                  className="!py-1.5 !px-2"
+                                  type="password"
+                                  placeholder="留空不改密码"
+                                  value={editForm.password}
+                                  minLength={8}
+                                  onChange={(event) =>
+                                    setEditForm((value) => ({
+                                      ...value,
+                                      password: event.target.value,
+                                    }))
+                                  }
+                                />
+                              </div>
                             ) : (
+                              <div className="flex items-center gap-3">
+                                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-violet-500/10 text-xs font-bold text-violet-400">
+                                  {user.username.slice(0, 1).toUpperCase()}
+                                </div>
+                                <div>
+                                  <div className="font-semibold text-main">
+                                    {user.username}
+                                  </div>
+                                  <div className="mt-0.5 text-[11px] text-main/40">
+                                    独立工作区
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={
+                                user.is_active
+                                  ? "settings-status-badge is-success"
+                                  : "settings-status-badge is-danger"
+                              }
+                            >
+                              {user.is_active ? "已启用" : "已停用"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-main/55">
+                            {new Date(user.created_at).toLocaleString("zh-CN")}
+                          </td>
+                          <td className="px-5 py-3">
+                            <div className="flex flex-wrap justify-end gap-1.5">
+                              {editingId === user.id ? (
+                                <>
+                                  <button
+                                    className="btn-secondary h-8 px-3 text-xs"
+                                    type="button"
+                                    disabled={saving}
+                                    onClick={() => void saveUser(user.id)}
+                                  >
+                                    <CheckCircle size={15} /> 保存
+                                  </button>
+                                  <button
+                                    className="btn-secondary h-8 px-3 text-xs"
+                                    type="button"
+                                    onClick={() => setEditingId(null)}
+                                  >
+                                    取消
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  className="btn-secondary h-8 px-3 text-xs"
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingId(user.id);
+                                    setEditForm({
+                                      username: user.username,
+                                      password: "",
+                                    });
+                                  }}
+                                >
+                                  编辑
+                                </button>
+                              )}
                               <button
                                 className="btn-secondary h-8 px-3 text-xs"
                                 type="button"
-                                onClick={() => {
-                                  setEditingId(user.id);
-                                  setEditForm({
-                                    username: user.username,
-                                    password: "",
-                                  });
-                                }}
+                                disabled={saving}
+                                onClick={() => void resetTotp(user)}
                               >
-                                编辑
+                                <Key size={14} /> 重置 2FA
                               </button>
-                            )}
-                            <button
-                              className="btn-secondary h-8 px-3 text-xs"
-                              type="button"
-                              disabled={saving}
-                              onClick={() => void resetTotp(user)}
-                            >
-                              <Key size={14} /> 重置 2FA
-                            </button>
-                            <button
-                              className={`btn-secondary h-8 px-3 text-xs ${user.is_active ? "!text-rose-400" : "!text-emerald-400"}`}
-                              type="button"
-                              disabled={saving}
-                              onClick={() => void toggleUser(user)}
-                            >
-                              {user.is_active ? (
-                                <UserMinus size={14} />
-                              ) : (
-                                <UserPlus size={14} />
-                              )}
-                              {user.is_active ? "停用" : "启用"}
-                            </button>
-                            <button
-                              className="btn-secondary h-8 px-3 text-xs !text-rose-400"
-                              type="button"
-                              disabled={saving}
-                              onClick={() => void deleteUser(user)}
-                            >
-                              <Trash size={14} /> 删除
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                              <button
+                                className={`btn-secondary h-8 px-3 text-xs ${user.is_active ? "!text-rose-400" : "!text-emerald-400"}`}
+                                type="button"
+                                disabled={saving}
+                                onClick={() => void toggleUser(user)}
+                              >
+                                {user.is_active ? (
+                                  <UserMinus size={14} />
+                                ) : (
+                                  <UserPlus size={14} />
+                                )}
+                                {user.is_active ? "停用" : "启用"}
+                              </button>
+                              <button
+                                className="btn-secondary h-8 px-3 text-xs !text-rose-400"
+                                type="button"
+                                disabled={saving}
+                                onClick={() => void deleteUser(user)}
+                              >
+                                <Trash size={14} /> 删除
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            {createDialogOpen && (
+              <div
+                className="modal-overlay active"
+                onMouseDown={() => !saving && setCreateDialogOpen(false)}
+              >
+                <form
+                  className="glass-panel modal-content !max-w-md !p-0 overflow-hidden"
+                  onSubmit={createUser}
+                  onMouseDown={(event) => event.stopPropagation()}
+                >
+                  <div className="modal-header !mb-0 border-b border-white/5 px-6 py-4">
+                    <div className="settings-panel-title">
+                      <div className="settings-panel-icon bg-emerald-500/10 text-emerald-400">
+                        <UserPlus size={18} weight="bold" />
+                      </div>
+                      <div>
+                        <div className="modal-title">创建普通用户</div>
+                        <div className="mt-1 text-xs text-main/45">
+                          用户数据与 Telegram 会话将独立存放。
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      className="action-btn"
+                      type="button"
+                      disabled={saving}
+                      onClick={() => setCreateDialogOpen(false)}
+                      aria-label="关闭"
+                    >
+                      <X weight="bold" />
+                    </button>
+                  </div>
+                  <div className="space-y-4 px-6 py-5">
+                    <div>
+                      <label className="text-[12px] mb-1.5">用户名</label>
+                      <input
+                        className="!py-2.5 !px-4"
+                        value={form.username}
+                        minLength={3}
+                        maxLength={50}
+                        required
+                        autoFocus
+                        onChange={(event) =>
+                          setForm((value) => ({
+                            ...value,
+                            username: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[12px] mb-1.5">初始密码</label>
+                      <input
+                        className="!py-2.5 !px-4"
+                        type="password"
+                        value={form.password}
+                        minLength={8}
+                        required
+                        onChange={(event) =>
+                          setForm((value) => ({
+                            ...value,
+                            password: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 border-t border-white/5 px-6 py-4">
+                    <button
+                      className="btn-secondary"
+                      type="button"
+                      disabled={saving}
+                      onClick={() => setCreateDialogOpen(false)}
+                    >
+                      取消
+                    </button>
+                    <button
+                      className="btn-gradient"
+                      disabled={saving}
+                      type="submit"
+                    >
+                      {saving ? (
+                        <Spinner className="animate-spin" />
+                      ) : (
+                        <Plus weight="bold" />
+                      )}{" "}
+                      创建用户
+                    </button>
+                  </div>
+                </form>
               </div>
             )}
           </section>
-
-          {createDialogOpen && (
-            <div
-              className="modal-overlay active"
-              onMouseDown={() => !saving && setCreateDialogOpen(false)}
-            >
-              <form
-                className="glass-panel modal-content !max-w-md !p-0 overflow-hidden"
-                onSubmit={createUser}
-                onMouseDown={(event) => event.stopPropagation()}
-              >
-                <div className="modal-header !mb-0 border-b border-white/5 px-6 py-4">
-                  <div className="settings-panel-title">
-                    <div className="settings-panel-icon bg-emerald-500/10 text-emerald-400">
-                      <UserPlus size={18} weight="bold" />
-                    </div>
-                    <div>
-                      <div className="modal-title">创建普通用户</div>
-                      <div className="mt-1 text-xs text-main/45">
-                        用户数据与 Telegram 会话将独立存放。
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    className="action-btn"
-                    type="button"
-                    disabled={saving}
-                    onClick={() => setCreateDialogOpen(false)}
-                    aria-label="关闭"
-                  >
-                    <X weight="bold" />
-                  </button>
-                </div>
-                <div className="space-y-4 px-6 py-5">
-                  <div>
-                    <label className="text-[12px] mb-1.5">用户名</label>
-                    <input
-                      className="!py-2.5 !px-4"
-                      value={form.username}
-                      minLength={3}
-                      maxLength={50}
-                      required
-                      autoFocus
-                      onChange={(event) =>
-                        setForm((value) => ({
-                          ...value,
-                          username: event.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[12px] mb-1.5">初始密码</label>
-                    <input
-                      className="!py-2.5 !px-4"
-                      type="password"
-                      value={form.password}
-                      minLength={8}
-                      required
-                      onChange={(event) =>
-                        setForm((value) => ({
-                          ...value,
-                          password: event.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2 border-t border-white/5 px-6 py-4">
-                  <button
-                    className="btn-secondary"
-                    type="button"
-                    disabled={saving}
-                    onClick={() => setCreateDialogOpen(false)}
-                  >
-                    取消
-                  </button>
-                  <button
-                    className="btn-gradient"
-                    disabled={saving}
-                    type="submit"
-                  >
-                    {saving ? (
-                      <Spinner className="animate-spin" />
-                    ) : (
-                      <Plus weight="bold" />
-                    )}{" "}
-                    创建用户
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-        </section>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

@@ -1525,118 +1525,126 @@ function SettingsPageContent() {
 
             {activeSection === "backup" && (
               <div className="space-y-4">
-                <div className="settings-panel">
-                  <div className="settings-panel-header">
-                    <div className="settings-panel-title">
-                      <div className="settings-panel-icon bg-rose-500/10 text-rose-400">
-                        <FloppyDisk weight="bold" size={18} />
-                      </div>
-                      <div>
-                        <h3 className="text-base font-bold">完整工作区迁移</h3>
-                        <p className="text-[10px] text-main/45 mt-0.5">
-                          ZIP 包包含 Telegram 登录会话、API
-                          密钥、代理、任务、日志和当前用户的全部工作区数据；不包含平台登录资料。
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="settings-callout !border-amber-500/30 text-[11px] text-amber-700 dark:text-amber-200/80">
-                    完整备份包含可直接登录 Telegram
-                    账号的敏感数据，请像密码一样妥善保管；恢复会覆盖当前用户的工作区数据，但不会修改平台用户名、密码或
-                    2FA。
-                  </div>
-                  <div className="settings-actions">
-                    <button
-                      onClick={handleFullBackupExport}
-                      className="btn-secondary"
-                      disabled={fullBackupLoading}
-                    >
-                      {fullBackupLoading ? (
-                        <Spinner className="animate-spin" />
-                      ) : (
-                        <DownloadSimple weight="bold" />
-                      )}
-                      下载完整 ZIP 备份
-                    </button>
-                    <label
-                      className={`btn-gradient cursor-pointer ${fullBackupLoading ? "pointer-events-none opacity-50" : ""}`}
-                    >
-                      {fullBackupLoading ? (
-                        <Spinner className="animate-spin" />
-                      ) : (
-                        <ArrowUDownLeft weight="bold" />
-                      )}
-                      恢复完整 ZIP 备份
-                      <input
-                        type="file"
-                        accept=".zip,application/zip"
-                        className="hidden"
-                        disabled={fullBackupLoading}
-                        onChange={(event) => {
-                          const file = event.target.files?.[0];
-                          event.currentTarget.value = "";
-                          if (file) void handleFullBackupImport(file);
-                        }}
-                      />
-                    </label>
-                  </div>
-                </div>
-
-                {currentUser?.is_admin && (
+                <div
+                  className={`grid grid-cols-1 gap-4 ${currentUser?.is_admin ? "xl:grid-cols-2" : ""}`}
+                >
                   <div className="settings-panel">
                     <div className="settings-panel-header">
                       <div className="settings-panel-title">
-                        <div className="settings-panel-icon bg-violet-500/10 text-violet-400">
-                          <ShieldCheck weight="bold" size={18} />
+                        <div className="settings-panel-icon bg-rose-500/10 text-rose-400">
+                          <FloppyDisk weight="bold" size={18} />
                         </div>
                         <div>
-                          <h3 className="text-base font-bold">完整系统迁移</h3>
+                          <h3 className="text-base font-bold">
+                            完整工作区迁移
+                          </h3>
                           <p className="text-[10px] text-main/45 mt-0.5">
-                            仅管理员可用，包含全部用户、全局配置、数据库、会话和系统密钥。
+                            ZIP 包包含 Telegram 登录会话、API
+                            密钥、代理、任务、日志和当前用户的全部工作区数据；不包含平台登录资料。
                           </p>
                         </div>
                       </div>
                     </div>
-                    <div className="settings-callout !border-rose-500/30 text-[11px] text-rose-700 dark:text-rose-200/80">
-                      恢复完整系统备份会覆盖当前所有用户和全部系统数据，恢复完成后需重启服务。
+                    <div className="settings-callout !border-amber-500/30 text-[11px] text-amber-700 dark:text-amber-200/80">
+                      完整备份包含可直接登录 Telegram
+                      账号的敏感数据，请像密码一样妥善保管；恢复会覆盖当前用户的工作区数据，但不会修改平台用户名、密码或
+                      2FA。
                     </div>
                     <div className="settings-actions">
                       <button
-                        onClick={handleSystemBackupExport}
+                        onClick={handleFullBackupExport}
                         className="btn-secondary"
-                        disabled={systemBackupLoading}
+                        disabled={fullBackupLoading}
                       >
-                        {systemBackupLoading ? (
+                        {fullBackupLoading ? (
                           <Spinner className="animate-spin" />
                         ) : (
                           <DownloadSimple weight="bold" />
                         )}
-                        下载完整系统备份
+                        下载完整 ZIP 备份
                       </button>
                       <label
-                        className={`btn-gradient cursor-pointer ${systemBackupLoading ? "pointer-events-none opacity-50" : ""}`}
+                        className={`btn-gradient cursor-pointer ${fullBackupLoading ? "pointer-events-none opacity-50" : ""}`}
                       >
-                        {systemBackupLoading ? (
+                        {fullBackupLoading ? (
                           <Spinner className="animate-spin" />
                         ) : (
                           <ArrowUDownLeft weight="bold" />
                         )}
-                        恢复完整系统备份
+                        恢复完整 ZIP 备份
                         <input
                           type="file"
                           accept=".zip,application/zip"
                           className="hidden"
-                          disabled={systemBackupLoading}
+                          disabled={fullBackupLoading}
                           onChange={(event) => {
                             const file = event.target.files?.[0];
                             event.currentTarget.value = "";
-                            if (file) void handleSystemBackupImport(file);
+                            if (file) void handleFullBackupImport(file);
                           }}
                         />
                       </label>
                     </div>
                   </div>
-                )}
+
+                  {currentUser?.is_admin && (
+                    <div className="settings-panel">
+                      <div className="settings-panel-header">
+                        <div className="settings-panel-title">
+                          <div className="settings-panel-icon bg-violet-500/10 text-violet-400">
+                            <ShieldCheck weight="bold" size={18} />
+                          </div>
+                          <div>
+                            <h3 className="text-base font-bold">
+                              完整系统迁移
+                            </h3>
+                            <p className="text-[10px] text-main/45 mt-0.5">
+                              仅管理员可用，包含全部用户、全局配置、数据库、会话和系统密钥。
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="settings-callout !border-rose-500/30 text-[11px] text-rose-700 dark:text-rose-200/80">
+                        恢复完整系统备份会覆盖当前所有用户和全部系统数据，恢复完成后需重启服务。
+                      </div>
+                      <div className="settings-actions">
+                        <button
+                          onClick={handleSystemBackupExport}
+                          className="btn-secondary"
+                          disabled={systemBackupLoading}
+                        >
+                          {systemBackupLoading ? (
+                            <Spinner className="animate-spin" />
+                          ) : (
+                            <DownloadSimple weight="bold" />
+                          )}
+                          下载完整系统备份
+                        </button>
+                        <label
+                          className={`btn-gradient cursor-pointer ${systemBackupLoading ? "pointer-events-none opacity-50" : ""}`}
+                        >
+                          {systemBackupLoading ? (
+                            <Spinner className="animate-spin" />
+                          ) : (
+                            <ArrowUDownLeft weight="bold" />
+                          )}
+                          恢复完整系统备份
+                          <input
+                            type="file"
+                            accept=".zip,application/zip"
+                            className="hidden"
+                            disabled={systemBackupLoading}
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              event.currentTarget.value = "";
+                              if (file) void handleSystemBackupImport(file);
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 <div className="settings-panel">
                   <div className="settings-panel-header">
