@@ -171,6 +171,7 @@ function DashboardSidebar({
   const onSettings = pathname.startsWith("/dashboard/settings");
   const [settingsOpen, setSettingsOpen] = useState(onSettings);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [identityLoadFailed, setIdentityLoadFailed] = useState(false);
 
   useEffect(() => {
     if (onSettings) setSettingsOpen(true);
@@ -180,8 +181,11 @@ function DashboardSidebar({
     const token = getToken();
     if (!token) return;
     getMe(token)
-      .then(setCurrentUser)
-      .catch(() => undefined);
+      .then((user) => {
+        setCurrentUser(user);
+        setIdentityLoadFailed(false);
+      })
+      .catch(() => setIdentityLoadFailed(true));
   }, []);
 
   const groups = [
@@ -346,16 +350,30 @@ function DashboardSidebar({
           <div className="sidebar-user-meta">
             <div className="sidebar-user-name">
               {currentUser?.username ||
-                (language === "zh" ? "加载中" : "Loading")}
+                (identityLoadFailed
+                  ? language === "zh"
+                    ? "身份加载失败"
+                    : "Identity unavailable"
+                  : language === "zh"
+                    ? "加载中"
+                    : "Loading")}
             </div>
             <div className="sidebar-user-role">
-              {currentUser?.is_admin
-                ? language === "zh"
-                  ? "管理员"
-                  : "Administrator"
-                : language === "zh"
-                  ? "普通用户"
-                  : "User"}
+              {!currentUser
+                ? identityLoadFailed
+                  ? language === "zh"
+                    ? "请重新登录"
+                    : "Please sign in again"
+                  : language === "zh"
+                    ? "正在验证"
+                    : "Verifying"
+                : currentUser.is_admin
+                  ? language === "zh"
+                    ? "管理员"
+                    : "Administrator"
+                  : language === "zh"
+                    ? "普通用户"
+                    : "User"}
             </div>
           </div>
           <button

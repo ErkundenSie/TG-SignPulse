@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import AsyncGenerator, Optional
 
 import pyotp
 from fastapi import Depends, HTTPException, status
@@ -101,9 +101,9 @@ def authenticate_user(db: Session, username: str, password: str) -> Optional[Use
     return auth_service.authenticate_user(db, username, password)
 
 
-def get_current_user(
+async def get_current_user(
     token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
-) -> User:
+) -> AsyncGenerator[User, None]:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -128,16 +128,18 @@ oauth2_scheme_optional = OAuth2PasswordBearer(
 )
 
 
-def get_current_user_optional(
+async def get_current_user_optional(
     token: Optional[str] = Depends(oauth2_scheme_optional),
     db: Session = Depends(get_db),
-) -> Optional[User]:
+) -> AsyncGenerator[Optional[User], None]:
     """获取当前用户，如果无法认证则返回 None（不抛出异常）"""
     if not token:
-        return None
+        yield None
+        return
     user = verify_token(token, db)
     if user is None:
-        return None
+        yield None
+        return
     workspace_token = activate_workspace(user.id, user.is_admin)
     try:
         yield user

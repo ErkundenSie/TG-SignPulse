@@ -24,15 +24,30 @@ def migrate_schema(engine: Engine) -> None:
                 )
             )
 
-        admin_id = connection.execute(
-            text("SELECT id FROM users ORDER BY id ASC LIMIT 1")
-        ).scalar_one_or_none()
-        if admin_id is not None:
-            connection.execute(text("UPDATE users SET is_admin = 0"))
+        admin_ids = list(
             connection.execute(
-                text("UPDATE users SET is_admin = 1 WHERE id = :user_id"),
-                {"user_id": admin_id},
-            )
+                text("SELECT id FROM users WHERE is_admin = 1 ORDER BY id ASC")
+            ).scalars()
+        )
+        if admin_ids:
+            admin_id = admin_ids[0]
+            if len(admin_ids) > 1:
+                connection.execute(
+                    text(
+                        "UPDATE users SET is_admin = 0 "
+                        "WHERE is_admin = 1 AND id != :user_id"
+                    ),
+                    {"user_id": admin_id},
+                )
+        else:
+            admin_id = connection.execute(
+                text("SELECT id FROM users ORDER BY id ASC LIMIT 1")
+            ).scalar_one_or_none()
+            if admin_id is not None:
+                connection.execute(
+                    text("UPDATE users SET is_admin = 1 WHERE id = :user_id"),
+                    {"user_id": admin_id},
+                )
 
         connection.execute(
             text(
