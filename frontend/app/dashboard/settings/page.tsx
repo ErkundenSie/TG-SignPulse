@@ -6,6 +6,8 @@ import { getToken, setToken } from "../../../lib/auth";
 import {
   changePassword,
   changeUsername,
+  exportAllManagedUsersData,
+  getMe,
   getTOTPStatus,
   setupTOTP,
   getTOTPQRCode,
@@ -14,6 +16,7 @@ import {
   exportAllConfigs,
   exportFullWorkspaceBackup,
   importAllConfigs,
+  importAllManagedUsersData,
   importFullWorkspaceBackup,
   getAIConfig,
   saveAIConfig,
@@ -32,6 +35,7 @@ import {
   exportSystemLogs,
   SystemLogsResponse,
 } from "../../../lib/api";
+import type { CurrentUser } from "../../../lib/types";
 import {
   User,
   Lock,
@@ -100,6 +104,7 @@ function SettingsPageContent() {
   const { t } = useLanguage();
   const { toasts, addToast, removeToast } = useToast();
   const [token, setLocalToken] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [userLoading, setUserLoading] = useState(false);
   const [pwdLoading, setPwdLoading] = useState(false);
   const [totpLoading, setTotpLoading] = useState(false);
@@ -134,6 +139,7 @@ function SettingsPageContent() {
   const [importConfig, setImportConfig] = useState("");
   const [overwriteConfig, setOverwriteConfig] = useState(false);
   const [fullBackupLoading, setFullBackupLoading] = useState(false);
+  const [systemBackupLoading, setSystemBackupLoading] = useState(false);
 
   // AI config
   const [aiConfig, setAIConfigState] = useState<AIConfig | null>(null);
@@ -221,6 +227,9 @@ function SettingsPageContent() {
     }
     setLocalToken(tokenStr);
     setChecking(false);
+    getMe(tokenStr)
+      .then(setCurrentUser)
+      .catch(() => setCurrentUser(null));
     loadTOTPStatus(tokenStr);
     loadAIConfig(tokenStr);
     loadGlobalSettings(tokenStr);
@@ -469,6 +478,42 @@ function SettingsPageContent() {
       addToast(err?.message || "导入完整工作区备份失败", "error");
     } finally {
       setFullBackupLoading(false);
+    }
+  };
+
+  const handleSystemBackupExport = async () => {
+    if (!token) return;
+    try {
+      setSystemBackupLoading(true);
+      await exportAllManagedUsersData(token);
+      addToast(
+        "完整系统备份已下载，包含全部用户、会话、密钥、2FA 和数据库数据。",
+        "success",
+      );
+    } catch (err: any) {
+      addToast(err?.message || "导出完整系统备份失败", "error");
+    } finally {
+      setSystemBackupLoading(false);
+    }
+  };
+
+  const handleSystemBackupImport = async (file: File) => {
+    if (!token) return;
+    if (
+      !window.confirm(
+        "恢复将覆盖当前整个系统：所有用户的用户名、密码哈希、2FA、Telegram 会话、密钥、数据库和工作区数据。确认继续？",
+      )
+    ) {
+      return;
+    }
+    try {
+      setSystemBackupLoading(true);
+      const result = await importAllManagedUsersData(token, file);
+      addToast(`${result.message} 请重启服务以完成恢复。`, "success");
+    } catch (err: any) {
+      addToast(err?.message || "导入完整系统备份失败", "error");
+    } finally {
+      setSystemBackupLoading(false);
     }
   };
 
@@ -1536,6 +1581,62 @@ function SettingsPageContent() {
                     </label>
                   </div>
                 </div>
+
+                {currentUser?.is_admin && (
+                  <div className="settings-panel">
+                    <div className="settings-panel-header">
+                      <div className="settings-panel-title">
+                        <div className="settings-panel-icon bg-violet-500/10 text-violet-400">
+                          <ShieldCheck weight="bold" size={18} />
+                        </div>
+                        <div>
+                          <h3 className="text-base font-bold">完整系统迁移</h3>
+                          <p className="text-[10px] text-main/45 mt-0.5">
+                            仅管理员可用，包含全部用户、全局配置、数据库、会话和系统密钥。
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="settings-callout !border-rose-500/30 text-[11px] text-rose-700 dark:text-rose-200/80">
+                      恢复完整系统备份会覆盖当前所有用户和全部系统数据，恢复完成后需重启服务。
+                    </div>
+                    <div className="settings-actions">
+                      <button
+                        onClick={handleSystemBackupExport}
+                        className="btn-secondary"
+                        disabled={systemBackupLoading}
+                      >
+                        {systemBackupLoading ? (
+                          <Spinner className="animate-spin" />
+                        ) : (
+                          <DownloadSimple weight="bold" />
+                        )}
+                        下载完整系统备份
+                      </button>
+                      <label
+                        className={`btn-gradient cursor-pointer ${systemBackupLoading ? "pointer-events-none opacity-50" : ""}`}
+                      >
+                        {systemBackupLoading ? (
+                          <Spinner className="animate-spin" />
+                        ) : (
+                          <ArrowUDownLeft weight="bold" />
+                        )}
+                        恢复完整系统备份
+                        <input
+                          type="file"
+                          accept=".zip,application/zip"
+                          className="hidden"
+                          disabled={systemBackupLoading}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            event.currentTarget.value = "";
+                            if (file) void handleSystemBackupImport(file);
+                          }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
 
                 <div className="settings-panel">
                   <div className="settings-panel-header">

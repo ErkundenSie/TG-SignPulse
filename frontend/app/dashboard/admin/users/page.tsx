@@ -4,7 +4,6 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle,
-  DownloadSimple,
   Key,
   Plus,
   ShieldCheck,
@@ -13,16 +12,13 @@ import {
   UserList,
   UserMinus,
   UserPlus,
-  UploadSimple,
   X,
 } from "@phosphor-icons/react";
 import { getToken } from "../../../../lib/auth";
 import {
   createManagedUser,
   deleteManagedUser,
-  exportAllManagedUsersData,
   getMe,
-  importAllManagedUsersData,
   listManagedUsers,
   resetManagedUserTOTP,
   updateManagedUser,
@@ -39,8 +35,6 @@ export default function AdminUsersPage() {
   const [error, setError] = useState("");
   const [form, setForm] = useState({ username: "", password: "" });
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [exporting, setExporting] = useState(false);
-  const [importing, setImporting] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({ username: "", password: "" });
 
@@ -178,45 +172,6 @@ export default function AdminUsersPage() {
     }
   };
 
-  const exportAllUsersData = async () => {
-    if (!token) return;
-    setExporting(true);
-    setError("");
-    setMessage("");
-    try {
-      await exportAllManagedUsersData(token);
-      setMessage(
-        "完整系统备份已下载，包含全部用户、会话、密钥、2FA 和数据库数据。",
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "导出全部用户数据失败");
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  const importAllUsersData = async (file: File) => {
-    if (!token) return;
-    if (
-      !window.confirm(
-        "恢复将覆盖当前整个系统：所有用户的用户名、密码哈希、2FA、Telegram 会话、密钥、数据库和工作区数据。确认继续？",
-      )
-    ) {
-      return;
-    }
-    setImporting(true);
-    setError("");
-    setMessage("");
-    try {
-      const result = await importAllManagedUsersData(token, file);
-      setMessage(`${result.message} 请重启服务以完成恢复。`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "导入完整系统备份失败");
-    } finally {
-      setImporting(false);
-    }
-  };
-
   return (
     <div className="main-content !pt-6">
       <div className="settings-shell settings-shell-single animate-float-up pb-10">
@@ -238,40 +193,6 @@ export default function AdminUsersPage() {
               <div className="flex items-center gap-2 text-[11px] text-emerald-400">
                 <ShieldCheck size={17} weight="fill" /> 单管理员模式
               </div>
-              <button
-                className="btn-secondary"
-                type="button"
-                disabled={exporting}
-                onClick={() => void exportAllUsersData()}
-              >
-                {exporting ? (
-                  <Spinner className="animate-spin" />
-                ) : (
-                  <DownloadSimple weight="bold" />
-                )}{" "}
-                导出完整系统备份
-              </button>
-              <label
-                className={`btn-secondary cursor-pointer ${importing ? "pointer-events-none opacity-50" : ""}`}
-              >
-                {importing ? (
-                  <Spinner className="animate-spin" />
-                ) : (
-                  <UploadSimple weight="bold" />
-                )}{" "}
-                恢复系统备份
-                <input
-                  type="file"
-                  accept=".zip,application/zip"
-                  className="hidden"
-                  disabled={importing}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    event.currentTarget.value = "";
-                    if (file) void importAllUsersData(file);
-                  }}
-                />
-              </label>
               <button
                 className="btn-gradient"
                 type="button"
