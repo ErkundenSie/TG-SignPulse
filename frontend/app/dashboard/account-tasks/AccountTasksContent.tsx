@@ -55,6 +55,7 @@ import {
 import { useLanguage } from "../../../context/LanguageContext";
 import {
   formatConfiguredDateTime,
+  formatConfiguredLegacyLocalDateTime,
   useConfiguredTimezone,
 } from "../../../lib/time";
 
@@ -389,7 +390,7 @@ const TaskItem = memo(
                 {task.last_run.success ? t("success") : t("failure")}
               </span>
               <span>
-                {formatConfiguredDateTime(
+                {formatConfiguredLegacyLocalDateTime(
                   task.last_run.time,
                   timezone,
                   language === "zh" ? "zh-CN" : "en-US",
@@ -4489,7 +4490,7 @@ export default function AccountTasksContent({
                         <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 border-b border-white/5 text-[10px]">
                           <div className="flex flex-wrap items-center gap-2 min-w-0">
                             <span className="font-mono text-main/35 whitespace-nowrap">
-                              {formatConfiguredDateTime(
+                              {formatConfiguredLegacyLocalDateTime(
                                 log.time,
                                 timezone,
                                 language === "zh" ? "zh-CN" : "en-US",

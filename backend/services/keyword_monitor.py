@@ -10,9 +10,10 @@ import threading
 import time
 import unicodedata
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+from zoneinfo import ZoneInfo
 
 from pyrogram import errors, filters
 from pyrogram.handlers import MessageHandler
@@ -20,6 +21,7 @@ from pyrogram.types import InlineKeyboardMarkup, Message, ReplyKeyboardMarkup
 
 from backend.core.config import get_settings
 from backend.core.workspace import get_workspace_key
+from backend.services.config import get_config_service
 from backend.services.push_notifications import send_keyword_push
 from backend.utils.account_locks import get_account_lock
 from backend.utils.proxy import build_proxy_dict
@@ -38,6 +40,11 @@ DEFAULT_HISTORY_LIMIT = 10
 DEFAULT_CLIENT_START_TIMEOUT = 20
 DEFAULT_AI_MEMORY_MAX_ITEMS = 2000
 DEFAULT_MATCH_RECORD_MAX_ITEMS = 5000
+
+
+def _now_in_configured_timezone() -> datetime:
+    timezone = get_config_service().get_global_settings().get("timezone")
+    return datetime.now(ZoneInfo(str(timezone or settings.timezone)))
 
 
 def _is_callback_data_invalid(exc: BaseException) -> bool:
@@ -533,7 +540,7 @@ class KeywordMonitorService:
         )
 
     def _daily_key(self) -> str:
-        return date.today().isoformat()
+        return _now_in_configured_timezone().date().isoformat()
 
     def _memory_max_items(self) -> int:
         return _read_positive_int_env(
@@ -643,7 +650,7 @@ class KeywordMonitorService:
         from_user = getattr(message, "from_user", None)
         chat_id = getattr(message.chat, "id", rule.chat_id)
         message_thread_id = self._message_thread_id(message)
-        now = datetime.now().isoformat(timespec="seconds")
+        now = _now_in_configured_timezone().isoformat(timespec="seconds")
         fingerprint = self._match_record_key(
             rule=rule,
             chat_id=chat_id,
@@ -725,14 +732,16 @@ class KeywordMonitorService:
         active: Optional[bool] = None,
     ) -> None:
         key = self._task_key(account_name, task_name)
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = _now_in_configured_timezone().strftime("%Y-%m-%d %H:%M:%S")
         logs = self._task_logs.setdefault(key, [])
         logs.append(f"{timestamp} - {line}")
         if len(logs) > 1000:
             del logs[:-1000]
 
         status = self._task_status.setdefault(key, {})
-        status["updated_at"] = datetime.now().isoformat(timespec="seconds")
+        status["updated_at"] = _now_in_configured_timezone().isoformat(
+            timespec="seconds"
+        )
         status["message"] = line
         if active is not None:
             status["active"] = active
@@ -1034,7 +1043,7 @@ class KeywordMonitorService:
         end = _parse_hhmm(rule.action.get("active_time_end"))
         if start is None or end is None:
             return True
-        now = datetime.now()
+        now = _now_in_configured_timezone()
         current_minutes = now.hour * 60 + now.minute
         start_minutes = start[0] * 60 + start[1]
         end_minutes = end[0] * 60 + end[1]
@@ -1637,7 +1646,7 @@ class KeywordMonitorService:
                 ).strip()
                 if not reply:
                     return False
-                now = datetime.now().isoformat(timespec="seconds")
+                now = _now_in_configured_timezone().isoformat(timespec="seconds")
                 history.extend(
                     [
                         {

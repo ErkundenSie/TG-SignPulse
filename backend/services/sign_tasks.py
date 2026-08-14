@@ -14,9 +14,11 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 from backend.core.config import get_settings
 from backend.core.workspace import get_workspace_key
+from backend.services.config import get_config_service
 from backend.utils.account_locks import get_account_lock
 from backend.utils.names import ensure_child_path, validate_name_segment
 from backend.utils.proxy import build_proxy_dict
@@ -658,7 +660,9 @@ class SignTaskService:
         )
 
         new_entry = {
-            "time": datetime.now().isoformat(),
+            "time": datetime.now(
+                ZoneInfo(get_config_service().get_global_settings()["timezone"])
+            ).isoformat(),
             "success": success,
             "message": self._repair_mojibake(message),
             "account_name": account_name,

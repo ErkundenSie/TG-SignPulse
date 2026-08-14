@@ -65,6 +65,7 @@ import {
 import { useLanguage } from "../../context/LanguageContext";
 import {
   formatConfiguredDateTime,
+  formatConfiguredLegacyLocalDateTime,
   useConfiguredTimezone,
 } from "../../lib/time";
 
@@ -3122,8 +3123,11 @@ export default function Dashboard() {
                                       </span>
                                     </div>
                                     <div className="mt-1 text-[11px] text-main/45">
-                                      {historyItem.finished_at ||
-                                        historyItem.updated_at}
+                                      {formatConfiguredLegacyLocalDateTime(
+                                        historyItem.finished_at ||
+                                          historyItem.updated_at,
+                                        timezone,
+                                      )}
                                     </div>
                                   </div>
                                   <div className="flex shrink-0 flex-wrap justify-end gap-2">

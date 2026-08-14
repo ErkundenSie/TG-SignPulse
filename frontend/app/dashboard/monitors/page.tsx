@@ -44,6 +44,10 @@ import {
   formatChatSubtitle,
 } from "../../../components/ui/chat-picker";
 import { useLanguage } from "../../../context/LanguageContext";
+import {
+  formatConfiguredLegacyLocalDateTime,
+  useConfiguredTimezone,
+} from "../../../lib/time";
 
 const emptyRule = (): MonitorRule => ({
   chat_id: "",
@@ -199,6 +203,7 @@ export default function MonitorTasksPage() {
   const searchParams = useSearchParams();
   const selectedAccountName = searchParams.get("account_name") || "";
   const isZh = language === "zh";
+  const timezone = useConfiguredTimezone();
   const { toasts, addToast, removeToast } = useToast();
   const addToastRef = useRef(addToast);
   const translateRef = useRef(t);
@@ -1775,7 +1780,10 @@ export default function MonitorTasksPage() {
                     </div>
                     {statusInfo.time && (
                       <div className="text-[10px] opacity-70 mt-1">
-                        {statusInfo.time}
+                        {formatConfiguredLegacyLocalDateTime(
+                          statusInfo.time,
+                          timezone,
+                        )}
                       </div>
                     )}
                   </div>
@@ -1844,11 +1852,17 @@ export default function MonitorTasksPage() {
                                 </div>
                                 <div>
                                   {labels.firstHit}:{" "}
-                                  {record.first_seen_at || "-"}
+                                  {formatConfiguredLegacyLocalDateTime(
+                                    record.first_seen_at,
+                                    timezone,
+                                  )}
                                 </div>
                                 <div>
                                   {labels.latestHit}:{" "}
-                                  {record.last_seen_at || "-"}
+                                  {formatConfiguredLegacyLocalDateTime(
+                                    record.last_seen_at,
+                                    timezone,
+                                  )}
                                 </div>
                               </div>
                               <div className="mt-3 rounded-lg bg-black/20 border border-white/5 p-2 text-xs text-main/70 whitespace-pre-wrap break-words">

@@ -22,9 +22,11 @@ scheduler: AsyncIOScheduler | None = None
 
 def get_scheduler_timezone() -> str:
     from backend.core.config import get_settings
+    from backend.services.config import get_config_service
 
     settings = get_settings()
-    return settings.timezone
+    global_settings = get_config_service().get_global_settings()
+    return str(global_settings.get("timezone") or settings.timezone)
 
 
 def create_cron_trigger(cron_str: str) -> CronTrigger:
@@ -50,8 +52,9 @@ def create_cron_trigger(cron_str: str) -> CronTrigger:
             day=parts[3],
             month=parts[4],
             day_of_week=parts[5],
+            timezone=get_scheduler_timezone(),
         )
-    return CronTrigger.from_crontab(cron_str)
+    return CronTrigger.from_crontab(cron_str, timezone=get_scheduler_timezone())
 
 
 def _parse_hhmm(value: str):
