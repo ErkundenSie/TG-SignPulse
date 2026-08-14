@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -50,7 +50,11 @@ def get_system_logs(
             lines=_tail_lines(path, limit),
             line_count=None,
             file_size=0 if stat is None else stat.st_size,
-            updated_at=None if stat is None else datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            updated_at=(
+                None
+                if stat is None
+                else datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
+            ),
             exists=path.exists(),
         )
     except Exception as exc:
